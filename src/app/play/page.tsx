@@ -1239,6 +1239,14 @@ function PlayPageClient() {
               return;
             }
 
+            // 原生 HLS 支持（Safari / iOS 端夸克等 WebKit 内核）：直接交给浏览器播放，
+            // 避免 hls.js 的 WebWorker/MSE 在部分 webview 中失效导致无法播放。
+            // 此前正是靠注入原生 <source> 才让夸克能播，现改为显式原生播放更稳健。
+            if (video.canPlayType('application/vnd.apple.mpegurl')) {
+              video.src = url;
+              return;
+            }
+
             if (video.hls) {
               video.hls.destroy();
             }

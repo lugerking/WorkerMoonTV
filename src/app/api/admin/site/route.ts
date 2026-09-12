@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
-import { setAdminConfig } from '@/lib/kv.db';
+import { setSiteConfig } from '@/lib/kv.db';
 
 export const runtime = 'nodejs';
 
@@ -83,8 +83,8 @@ export async function POST(request: NextRequest) {
       DisableYellowFilter,
     };
 
-    // 写入 KV
-    await setAdminConfig(adminConfig);
+    // 写入 KV（仅「站点设置」分片）
+    await setSiteConfig(adminConfig.SiteConfig);
 
     return NextResponse.json(
       { ok: true },

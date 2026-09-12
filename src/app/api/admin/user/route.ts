@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { getStorage } from '@/lib/db';
-import { setAdminConfig } from '@/lib/kv.db';
+import { setUserConfig } from '@/lib/kv.db';
 import { IStorage } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -312,8 +312,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 将更新后的配置写入 KV
-    await setAdminConfig(adminConfig);
+    // 将更新后的配置写入 KV（仅「用户配置」分片）
+    await setUserConfig(adminConfig.UserConfig);
 
     return NextResponse.json(
       { ok: true },

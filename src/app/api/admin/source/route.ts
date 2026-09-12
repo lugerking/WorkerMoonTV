@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
-import { setAdminConfig } from '@/lib/kv.db';
+import { setSourceConfig } from '@/lib/kv.db';
 
 export const runtime = 'nodejs';
 
@@ -141,8 +141,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: '未知操作' }, { status: 400 });
     }
 
-    // 持久化到 KV
-    await setAdminConfig(adminConfig);
+    // 持久化到 KV（仅「视频源」分片）
+    await setSourceConfig(adminConfig.SourceConfig);
 
     return NextResponse.json(
       { ok: true },

@@ -91,13 +91,27 @@ npx wrangler secret put PASSWORD
 # 或使用 JSON 文件批量导入：npx wrangler secret bulk secrets.json
 ```
 
-### 三、D1 绑定
+### 三、D1 绑定（用户数据）
 
 | 绑定名 | 数据库 |
 | --- | --- |
 | `DB` | `moontvdatabase` |
 
 > ⚠️ **绑定名必须为 `DB`**，应用代码按此名称读取。
+
+### 四、KV 绑定（管理员配置）
+
+| 绑定名 | 说明 |
+| --- | --- |
+| `CONFIG_KV` | 管理员配置；按 `SiteConfig` / `SourceConfig` / `CustomCategories` / `UserConfig` 拆为 4 个 key（`admin_config:site`、`admin_config:sources`、`admin_config:categories`、`admin_config:users`） |
+
+创建方式：
+
+```bash
+npx wrangler kv namespace create CONFIG_KV
+```
+
+> ⚠️ **绑定名必须为 `CONFIG_KV`**。管理员配置独立于用户数据存储，与 `NEXT_PUBLIC_STORAGE_TYPE` 无关；为空时会自动用环境变量 + `config.json` 初始化。
 
 > ⚠️ **`NEXT_PUBLIC_*` 变量会在构建时内联进产物**，因此**构建时也必须设置**同名环境变量（见 [构建与部署](#构建与部署)）。运行时变量只影响非内联的逻辑（如 `PASSWORD`、`USERNAME`）。
 
@@ -111,7 +125,7 @@ npx wrangler secret put PASSWORD
 npx wrangler d1 execute moontvdatabase --remote --file=schema.sql
 ```
 
-`schema.sql` 内容（对应应用所需的 6 张表与索引）：
+`schema.sql` 内容（对应应用所需的 5 张表与索引；管理员配置已迁移到 KV，不再需要 `admin_config` 表）：
 
 ```sql
 CREATE TABLE IF NOT EXISTS users (
@@ -156,12 +170,6 @@ CREATE TABLE IF NOT EXISTS search_history (
   keyword TEXT NOT NULL,
   created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
   UNIQUE(username, keyword)
-);
-
-CREATE TABLE IF NOT EXISTS admin_config (
-  id INTEGER PRIMARY KEY DEFAULT 1,
-  config TEXT NOT NULL,
-  updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
 );
 
 CREATE TABLE IF NOT EXISTS skip_configs (

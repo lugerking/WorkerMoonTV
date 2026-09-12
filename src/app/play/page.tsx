@@ -188,7 +188,6 @@ function PlayPageClient() {
   >('initing');
 
   // 播放进度保存相关
-  const saveIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastSaveTimeRef = useRef<number>(0);
 
   const artPlayerRef = useRef<any>(null);
@@ -436,7 +435,12 @@ function PlayPageClient() {
     }
   };
 
-  // 去广告相关函数
+  /**
+   * 去广告：过滤 m3u8 播放列表中的 `#EXT-X-DISCONTINUITY` 标记。
+   *
+   * 部分资源站会在正片切片之间插入带该标记的广告段，移除后播放器即可跳过广告。
+   * 属于启发式方案，仅在开启「去广告」开关（blockAdEnabled）时对 m3u8 生效。
+   */
   function filterAdsFromM3U8(m3u8Content: string): string {
     if (!m3u8Content) return '';
 
@@ -1086,15 +1090,6 @@ function PlayPageClient() {
     };
   }, [currentEpisodeIndex, detail, artPlayerRef.current]);
 
-  // 清理定时器
-  useEffect(() => {
-    return () => {
-      if (saveIntervalRef.current) {
-        clearInterval(saveIntervalRef.current);
-      }
-    };
-  }, []);
-
   // ---------------------------------------------------------------------------
   // 收藏相关
   // ---------------------------------------------------------------------------
@@ -1570,15 +1565,6 @@ function PlayPageClient() {
       setError('播放器初始化失败');
     }
   }, [Artplayer, Hls, videoUrl, loading, blockAdEnabled]);
-
-  // 当组件卸载时清理定时器
-  useEffect(() => {
-    return () => {
-      if (saveIntervalRef.current) {
-        clearInterval(saveIntervalRef.current);
-      }
-    };
-  }, []);
 
   if (loading) {
     return (

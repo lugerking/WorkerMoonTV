@@ -46,7 +46,13 @@ export function generateStorageKey(source: string, id: string): string {
   return `${source}+${id}`;
 }
 
-// 导出便捷方法
+/**
+ * 存储门面（Facade）
+ *
+ * 上层业务统一通过本类访问数据，屏蔽底层存储差异（D1 / Redis / Upstash）。
+ * 内部把 (userName, source, id) 组合为 `${source}+${id}` 作为存储 key。
+ * 注：localstorage 模式下 `getStorage()` 返回 null，实际读写由客户端 `db.client.ts` 接管。
+ */
 export class DbManager {
   private storage: IStorage;
 
@@ -122,15 +128,6 @@ export class DbManager {
   ): Promise<void> {
     const key = generateStorageKey(source, id);
     await this.storage.deleteFavorite(userName, key);
-  }
-
-  async isFavorited(
-    userName: string,
-    source: string,
-    id: string
-  ): Promise<boolean> {
-    const favorite = await this.getFavorite(userName, source, id);
-    return favorite !== null;
   }
 
   // ---------- 用户相关 ----------

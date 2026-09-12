@@ -34,7 +34,6 @@ interface EpisodeSelectorProps {
   currentSource?: string;
   currentId?: string;
   videoTitle?: string;
-  videoYear?: string;
   availableSources?: SearchResult[];
   sourceSearchLoading?: boolean;
   sourceSearchError?: string | null;

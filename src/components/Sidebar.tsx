@@ -8,7 +8,6 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   createContext,
   useCallback,
-  useContext,
   useEffect,
   useLayoutEffect,
   useState,
@@ -23,8 +22,6 @@ interface SidebarContextType {
 const SidebarContext = createContext<SidebarContextType>({
   isCollapsed: false,
 });
-
-export const useSidebar = () => useContext(SidebarContext);
 
 // 可替换为你自己的 logo 图片
 const Logo = () => {

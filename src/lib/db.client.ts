@@ -97,6 +97,12 @@ const STORAGE_TYPE = (() => {
 const SEARCH_HISTORY_LIMIT = 20;
 
 // ---- 缓存管理器 ----
+/**
+ * 数据库模式下的本地缓存管理器（基于 localStorage）。
+ *
+ * 采用「本地缓存 + 乐观更新 + 后台接口同步」策略：
+ * 读优先命中本地缓存（1 小时过期），写先更新缓存并派发自定义事件，再异步请求后端接口。
+ */
 class HybridCacheManager {
   private static instance: HybridCacheManager;
 
@@ -1174,107 +1180,6 @@ export async function clearAllFavorites(): Promise<void> {
   );
 }
 
-// ---------------- 混合缓存辅助函数 ----------------
-
-/**
- * 清除当前用户的所有缓存数据
- * 用于用户登出时清理缓存
- */
-export function clearUserCache(): void {
-  if (STORAGE_TYPE !== 'localstorage') {
-    cacheManager.clearUserCache();
-  }
-}
-
-/**
- * 手动刷新所有缓存数据
- * 强制从服务器重新获取数据并更新缓存
- */
-export async function refreshAllCache(): Promise<void> {
-  if (STORAGE_TYPE === 'localstorage') return;
-
-  try {
-    // 并行刷新所有数据
-    const [playRecords, favorites, searchHistory, skipConfigs] =
-      await Promise.allSettled([
-        fetchFromApi<Record<string, PlayRecord>>(`/api/playrecords`),
-        fetchFromApi<Record<string, Favorite>>(`/api/favorites`),
-        fetchFromApi<string[]>(`/api/searchhistory`),
-        fetchFromApi<Record<string, SkipConfig>>(`/api/skipconfigs`),
-      ]);
-
-    if (playRecords.status === 'fulfilled') {
-      cacheManager.cachePlayRecords(playRecords.value);
-      window.dispatchEvent(
-        new CustomEvent('playRecordsUpdated', {
-          detail: playRecords.value,
-        })
-      );
-    }
-
-    if (favorites.status === 'fulfilled') {
-      cacheManager.cacheFavorites(favorites.value);
-      window.dispatchEvent(
-        new CustomEvent('favoritesUpdated', {
-          detail: favorites.value,
-        })
-      );
-    }
-
-    if (searchHistory.status === 'fulfilled') {
-      cacheManager.cacheSearchHistory(searchHistory.value);
-      window.dispatchEvent(
-        new CustomEvent('searchHistoryUpdated', {
-          detail: searchHistory.value,
-        })
-      );
-    }
-
-    if (skipConfigs.status === 'fulfilled') {
-      cacheManager.cacheSkipConfigs(skipConfigs.value);
-      window.dispatchEvent(
-        new CustomEvent('skipConfigsUpdated', {
-          detail: skipConfigs.value,
-        })
-      );
-    }
-  } catch (err) {
-    console.error('刷新缓存失败:', err);
-    triggerGlobalError('刷新缓存失败');
-  }
-}
-
-/**
- * 获取缓存状态信息
- * 用于调试和监控缓存健康状态
- */
-export function getCacheStatus(): {
-  hasPlayRecords: boolean;
-  hasFavorites: boolean;
-  hasSearchHistory: boolean;
-  hasSkipConfigs: boolean;
-  username: string | null;
-} {
-  if (STORAGE_TYPE === 'localstorage') {
-    return {
-      hasPlayRecords: false,
-      hasFavorites: false,
-      hasSearchHistory: false,
-      hasSkipConfigs: false,
-      username: null,
-    };
-  }
-
-  const authInfo = getAuthInfoFromBrowserCookie();
-  return {
-    hasPlayRecords: !!cacheManager.getCachedPlayRecords(),
-    hasFavorites: !!cacheManager.getCachedFavorites(),
-    hasSearchHistory: !!cacheManager.getCachedSearchHistory(),
-    hasSkipConfigs: !!cacheManager.getCachedSkipConfigs(),
-    username: authInfo?.username || null,
-  };
-}
-
 // ---------------- React Hook 辅助类型 ----------------
 
 export type CacheUpdateEvent =
@@ -1313,30 +1218,7 @@ export function subscribeToDataUpdates<T>(
   };
 }
 
-/**
- * 预加载所有用户数据到缓存
- * 适合在应用启动时调用，提升后续访问速度
- */
-export async function preloadUserData(): Promise<void> {
-  if (STORAGE_TYPE === 'localstorage') return;
 
-  // 检查是否已有有效缓存，避免重复请求
-  const status = getCacheStatus();
-  if (
-    status.hasPlayRecords &&
-    status.hasFavorites &&
-    status.hasSearchHistory &&
-    status.hasSkipConfigs
-  ) {
-    return;
-  }
-
-  // 后台静默预加载，不阻塞界面
-  refreshAllCache().catch((err) => {
-    console.warn('预加载用户数据失败:', err);
-    triggerGlobalError('预加载用户数据失败');
-  });
-}
 
 // ---------------- 跳过片头片尾配置相关 API ----------------
 

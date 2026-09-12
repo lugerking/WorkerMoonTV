@@ -15,6 +15,13 @@ interface ApiSearchItem {
   type_name?: string;
 }
 
+/**
+ * 在指定资源站搜索。
+ *
+ * 以 `config.json` 中该源的 `api` 为基址调用苹果 CMS 的 `?ac=videolist&wd=` 接口，
+ * 支持按 `SearchDownstreamMaxPage` 翻页（默认 5 页），并返回统一的 `SearchResult` 列表。
+ * 单个来源请求 8 秒超时。
+ */
 export async function searchFromApi(
   apiSite: ApiSite,
   query: string

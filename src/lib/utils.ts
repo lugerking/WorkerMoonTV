@@ -66,18 +66,6 @@ export function getDoubanProxyUrl(): string | null {
     : null;
 }
 
-/**
- * 处理豆瓣 URL，如果设置了豆瓣代理则使用代理
- */
-export function processDoubanUrl(originalUrl: string): string {
-  if (!originalUrl) return originalUrl;
-
-  const proxyUrl = getDoubanProxyUrl();
-  if (!proxyUrl) return originalUrl;
-
-  return `${proxyUrl}${encodeURIComponent(originalUrl)}`;
-}
-
 export function cleanHtmlTags(text: string): string {
   if (!text) return '';
   return text

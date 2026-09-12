@@ -12,6 +12,10 @@
     {
       "pattern": "workermoontv.mytvapp.qzz.io",
       "custom_domain": true
+    },
+    {
+      "pattern": "mytvapp.qzz.io",
+      "custom_domain": true
     }
   ],
   "d1_databases": [

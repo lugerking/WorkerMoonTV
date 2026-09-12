@@ -33,7 +33,6 @@
   ],
   "vars": {
     "NEXT_PUBLIC_STORAGE_TYPE": "d1",
-    "NEXT_PUBLIC_ENABLE_REGISTER": "true",
     "USERNAME": "lugerking"
   },
   "observability": {

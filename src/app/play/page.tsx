@@ -87,6 +87,8 @@ function PlayPageClient() {
   useEffect(() => {
     blockAdEnabledRef.current = blockAdEnabled;
   }, [blockAdEnabled]);
+  // 记录上一次的「去广告」开关，用于判断是否需要重建播放器（换集只需轻量 switch）
+  const prevBlockAdRef = useRef(blockAdEnabled);
 
   // 视频基本信息
   const [videoTitle, setVideoTitle] = useState(searchParams.get('title') || '');
@@ -412,26 +414,6 @@ function PlayPageClient() {
     const newUrl = detailData?.episodes[episodeIndex] || '';
     if (newUrl !== videoUrl) {
       setVideoUrl(newUrl);
-    }
-  };
-
-  const ensureVideoSource = (video: HTMLVideoElement | null, url: string) => {
-    if (!video || !url) return;
-    const sources = Array.from(video.getElementsByTagName('source'));
-    const existed = sources.some((s) => s.src === url);
-    if (!existed) {
-      // 移除旧的 source，保持唯一
-      sources.forEach((s) => s.remove());
-      const sourceEl = document.createElement('source');
-      sourceEl.src = url;
-      video.appendChild(sourceEl);
-    }
-
-    // 始终允许远程播放（AirPlay / Cast）
-    video.disableRemotePlayback = false;
-    // 如果曾经有禁用属性，移除之
-    if (video.hasAttribute('disableRemotePlayback')) {
-      video.removeAttribute('disableRemotePlayback');
     }
   };
 
@@ -1184,28 +1166,23 @@ function PlayPageClient() {
     }
     console.log(videoUrl);
 
-    // 检测是否为WebKit浏览器
-    const isWebkit =
-      typeof window !== 'undefined' &&
-      typeof (window as any).webkitConvertPointFromNodeToPage === 'function';
+    // 统一用 ArtPlayer 的 switch 切换（5.4 的 switch 为跨浏览器可用的 setter），
+    // 仅在「首次创建」或「去广告开关变化需更换 loader」时销毁重建，避免夸克等
+    // 暴露 legacy webkit 全局变量的浏览器每次切集都走脆弱的「重建整个播放器」路径。
+    const needRecreate =
+      !artPlayerRef.current || prevBlockAdRef.current !== blockAdEnabled;
+    prevBlockAdRef.current = blockAdEnabled;
 
-    // 非WebKit浏览器且播放器已存在，使用switch方法切换
-    if (!isWebkit && artPlayerRef.current) {
+    if (!needRecreate && artPlayerRef.current) {
       artPlayerRef.current.switch = videoUrl;
       artPlayerRef.current.title = `${videoTitle} - 第${
         currentEpisodeIndex + 1
       }集`;
       artPlayerRef.current.poster = videoCover;
-      if (artPlayerRef.current?.video) {
-        ensureVideoSource(
-          artPlayerRef.current.video as HTMLVideoElement,
-          videoUrl
-        );
-      }
       return;
     }
 
-    // WebKit浏览器或首次创建：销毁之前的播放器实例并创建新的
+    // 首次创建或需重建：销毁之前的播放器实例并创建新的
     if (artPlayerRef.current) {
       if (artPlayerRef.current.video && artPlayerRef.current.video.hls) {
         artPlayerRef.current.video.hls.destroy();
@@ -1284,8 +1261,6 @@ function PlayPageClient() {
             hls.loadSource(url);
             hls.attachMedia(video);
             video.hls = hls;
-
-            ensureVideoSource(video, url);
 
             hls.on(Hls.Events.ERROR, function (event: any, data: any) {
               console.error('HLS Error:', event, data);
@@ -1461,8 +1436,7 @@ function PlayPageClient() {
           if (
             Math.abs(
               artPlayerRef.current.playbackRate - lastPlaybackRateRef.current
-            ) > 0.01 &&
-            isWebkit
+            ) > 0.01
           ) {
             artPlayerRef.current.playbackRate = lastPlaybackRateRef.current;
           }
@@ -1553,13 +1527,6 @@ function PlayPageClient() {
       artPlayerRef.current.on('pause', () => {
         saveCurrentPlayProgress();
       });
-
-      if (artPlayerRef.current?.video) {
-        ensureVideoSource(
-          artPlayerRef.current.video as HTMLVideoElement,
-          videoUrl
-        );
-      }
     } catch (err) {
       console.error('创建播放器失败:', err);
       setError('播放器初始化失败');

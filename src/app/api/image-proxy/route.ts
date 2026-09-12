@@ -37,7 +37,17 @@ function isBlockedHost(hostname: string): boolean {
 // 图片代理：让浏览器经同源代理加载第三方海报，绕开防盗链/混合内容/地域封锁
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const imageUrl = searchParams.get('url');
+  // 支持 base64url 编码的 u= 参数：前端用它避免 URL 中出现可读第三方域名，
+  // 从而躲过广告/追踪拦截器对 `url=https://...` 类参数的拦截。
+  const encoded = searchParams.get('u');
+  let imageUrl: string | null = searchParams.get('url');
+  if (encoded) {
+    try {
+      imageUrl = Buffer.from(encoded, 'base64url').toString('utf-8');
+    } catch {
+      imageUrl = null;
+    }
+  }
 
   if (!imageUrl) {
     return NextResponse.json({ error: 'Missing image URL' }, { status: 400 });

@@ -37,6 +37,17 @@ export function processImageUrl(originalUrl: string): string {
   const proxyUrl = getImageProxyUrl();
   if (!proxyUrl) return originalUrl;
 
+  // 内置代理：用 base64url 编码目标地址，使请求 URL 中不再出现可读的第三方域名
+  // （如 doubanio.com），从而躲过 PC Chrome 上广告/追踪拦截器对 `url=https://...` 类参数的拦截。
+  if (proxyUrl.includes('/api/image-proxy')) {
+    const base = proxyUrl.split('?')[0]; // 去掉可能携带的 ?url= 等后缀
+    const enc = btoa(unescape(encodeURIComponent(originalUrl)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    return `${base}?u=${enc}`;
+  }
+
   return `${proxyUrl}${encodeURIComponent(originalUrl)}`;
 }
 

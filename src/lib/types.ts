@@ -1,5 +1,3 @@
-import { AdminConfig } from './admin.types';
-
 // 播放记录数据结构
 export interface PlayRecord {
   title: string;
@@ -60,10 +58,6 @@ export interface IStorage {
 
   // 用户列表
   getAllUsers(): Promise<string[]>;
-
-  // 管理员配置相关
-  getAdminConfig(): Promise<AdminConfig | null>;
-  setAdminConfig(config: AdminConfig): Promise<void>;
 
   // 跳过片头片尾配置相关
   getSkipConfig(

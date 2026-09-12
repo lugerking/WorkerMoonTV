@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateSignature } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
+import { setAdminConfig } from '@/lib/kv.db';
 
 export const runtime = 'nodejs';
 
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
         username,
         role: 'user',
       });
-      await db.saveAdminConfig(config);
+      await setAdminConfig(config);
 
       // 注册成功，设置认证cookie
       const response = NextResponse.json({ ok: true });

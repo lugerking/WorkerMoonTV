@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { getStorage } from '@/lib/db';
+import { setAdminConfig } from '@/lib/kv.db';
 import { IStorage } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -311,10 +312,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 将更新后的配置写入数据库
-    if (storage && typeof (storage as any).setAdminConfig === 'function') {
-      await (storage as any).setAdminConfig(adminConfig);
-    }
+    // 将更新后的配置写入 KV
+    await setAdminConfig(adminConfig);
 
     return NextResponse.json(
       { ok: true },

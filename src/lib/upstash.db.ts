@@ -2,7 +2,6 @@
 
 import { Redis } from '@upstash/redis';
 
-import { AdminConfig } from './admin.types';
 import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 
 // 搜索历史最大条数
@@ -261,20 +260,6 @@ export class UpstashRedisStorage implements IStorage {
         return match ? ensureString(match[1]) : undefined;
       })
       .filter((u): u is string => typeof u === 'string');
-  }
-
-  // ---------- 管理员配置 ----------
-  private adminConfigKey() {
-    return 'admin:config';
-  }
-
-  async getAdminConfig(): Promise<AdminConfig | null> {
-    const val = await withRetry(() => this.client.get(this.adminConfigKey()));
-    return val ? (val as AdminConfig) : null;
-  }
-
-  async setAdminConfig(config: AdminConfig): Promise<void> {
-    await withRetry(() => this.client.set(this.adminConfigKey(), config));
   }
 
   // ---------- 跳过片头片尾配置 ----------

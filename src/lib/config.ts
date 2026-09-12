@@ -3,6 +3,7 @@
 import { getStorage } from '@/lib/db';
 
 import { AdminConfig } from './admin.types';
+import { getAdminConfig, setAdminConfig } from './kv.db';
 import runtimeConfig from './runtime';
 
 export interface ApiSite {
@@ -73,11 +74,8 @@ async function initConfig() {
     const storage = getStorage();
 
     try {
-      // 尝试从数据库获取管理员配置
-      let adminConfig: AdminConfig | null = null;
-      if (storage && typeof (storage as any).getAdminConfig === 'function') {
-        adminConfig = await (storage as any).getAdminConfig();
-      }
+      // 从 KV 读取管理员配置（配置已从 D1 迁移到 Workers KV）
+      let adminConfig: AdminConfig | null = await getAdminConfig();
 
       // 获取所有用户名，用于补全 Users
       let userNames: string[] = [];
@@ -226,10 +224,8 @@ async function initConfig() {
         };
       }
 
-      // 写回数据库（更新/创建）
-      if (storage && typeof (storage as any).setAdminConfig === 'function') {
-        await (storage as any).setAdminConfig(adminConfig);
-      }
+      // 写回 KV（更新/创建）
+      await setAdminConfig(adminConfig);
 
       // 更新缓存
       cachedConfig = adminConfig;
@@ -282,12 +278,8 @@ export async function getConfig(): Promise<AdminConfig> {
     await initConfig();
     return cachedConfig;
   }
-  // 非 docker 环境且 DB 存储，直接读 db 配置
-  const storage = getStorage();
-  let adminConfig: AdminConfig | null = null;
-  if (storage && typeof (storage as any).getAdminConfig === 'function') {
-    adminConfig = await (storage as any).getAdminConfig();
-  }
+  // 非 docker 环境：从 KV 读取管理员配置
+  const adminConfig: AdminConfig | null = await getAdminConfig();
   if (adminConfig) {
     // 确保基础结构存在
     if (!adminConfig.CustomCategories) {
@@ -483,9 +475,7 @@ export async function resetConfig() {
         : [],
   } as AdminConfig;
 
-  if (storage && typeof (storage as any).setAdminConfig === 'function') {
-    await (storage as any).setAdminConfig(adminConfig);
-  }
+  await setAdminConfig(adminConfig);
   if (cachedConfig == null) {
     // serverless 环境，直接使用 adminConfig
     cachedConfig = adminConfig;

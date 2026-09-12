@@ -1,6 +1,5 @@
 /* eslint-disable no-console, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
-import { AdminConfig } from './admin.types';
 import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 
 // 搜索历史最大条数
@@ -454,38 +453,6 @@ export class D1Storage implements IStorage {
       return result.results.map((row) => row.username);
     } catch (err) {
       console.error('Failed to get all users:', err);
-      throw err;
-    }
-  }
-
-  // 管理员配置相关
-  async getAdminConfig(): Promise<AdminConfig | null> {
-    try {
-      const db = await this.getDatabase();
-      const result = await db
-        .prepare('SELECT config FROM admin_config WHERE id = 1')
-        .first<{ config: string }>();
-
-      if (!result) return null;
-
-      return JSON.parse(result.config) as AdminConfig;
-    } catch (err) {
-      console.error('Failed to get admin config:', err);
-      throw err;
-    }
-  }
-
-  async setAdminConfig(config: AdminConfig): Promise<void> {
-    try {
-      const db = await this.getDatabase();
-      await db
-        .prepare(
-          'INSERT OR REPLACE INTO admin_config (id, config) VALUES (1, ?)'
-        )
-        .bind(JSON.stringify(config))
-        .run();
-    } catch (err) {
-      console.error('Failed to set admin config:', err);
       throw err;
     }
   }

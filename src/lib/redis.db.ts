@@ -2,7 +2,14 @@
 
 import { createClient, RedisClientType } from 'redis';
 
-import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
+import {
+  Favorite,
+  IStorage,
+  PlayRecord,
+  SkipConfig,
+  UserInfo,
+  UserRole,
+} from './types';
 
 // 搜索历史最大条数
 const SEARCH_HISTORY_LIMIT = 20;
@@ -202,6 +209,10 @@ export class RedisStorage implements IStorage {
     // 删除用户密码
     await withRetry(() => this.client.del(this.userPwdKey(userName)));
 
+    // 删除角色 / 封禁状态
+    await withRetry(() => this.client.del(this.userRoleKey(userName)));
+    await withRetry(() => this.client.del(this.userBannedKey(userName)));
+
     // 删除搜索历史
     await withRetry(() => this.client.del(this.shKey(userName)));
 
@@ -265,15 +276,57 @@ export class RedisStorage implements IStorage {
     }
   }
 
-  // ---------- 获取全部用户 ----------
-  async getAllUsers(): Promise<string[]> {
+  // ---------- 用户角色 / 封禁 ----------
+  private userRoleKey(user: string) {
+    return `u:${user}:role`;
+  }
+
+  private userBannedKey(user: string) {
+    return `u:${user}:banned`;
+  }
+
+  // ---------- 获取全部用户（含角色与封禁状态） ----------
+  async getAllUsers(): Promise<UserInfo[]> {
     const keys = await withRetry(() => this.client.keys('u:*:pwd'));
-    return keys
+    const userNames = keys
       .map((k) => {
         const match = k.match(/^u:(.+?):pwd$/);
         return match ? ensureString(match[1]) : undefined;
       })
       .filter((u): u is string => typeof u === 'string');
+
+    const users: UserInfo[] = [];
+    for (const username of userNames) {
+      const role = await withRetry(() =>
+        this.client.get(this.userRoleKey(username))
+      );
+      const banned = await withRetry(() =>
+        this.client.get(this.userBannedKey(username))
+      );
+      users.push({
+        username,
+        role: (role as UserRole) || 'user',
+        banned: banned === '1' || banned === 'true',
+      });
+    }
+    return users;
+  }
+
+  // 更新用户角色 / 封禁状态
+  async updateUserMeta(
+    userName: string,
+    meta: { role?: UserRole; banned?: boolean }
+  ): Promise<void> {
+    if (meta.role) {
+      const role = meta.role;
+      await withRetry(() => this.client.set(this.userRoleKey(userName), role));
+    }
+    if (typeof meta.banned === 'boolean') {
+      const banned = meta.banned;
+      await withRetry(() =>
+        this.client.set(this.userBannedKey(userName), banned ? '1' : '0')
+      );
+    }
   }
 
   // ---------- 跳过片头片尾配置 ----------

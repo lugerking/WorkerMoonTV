@@ -1,6 +1,13 @@
 /* eslint-disable no-console, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
-import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
+import {
+  Favorite,
+  IStorage,
+  PlayRecord,
+  SkipConfig,
+  UserInfo,
+  UserRole,
+} from './types';
 
 // 搜索历史最大条数
 const SEARCH_HISTORY_LIMIT = 20;
@@ -442,17 +449,53 @@ export class D1Storage implements IStorage {
     }
   }
 
-  // 用户列表
-  async getAllUsers(): Promise<string[]> {
+  // 用户列表（含角色与封禁状态；users 表是用户数据的唯一来源）
+  async getAllUsers(): Promise<UserInfo[]> {
     try {
       const db = await this.getDatabase();
       const result = await db
-        .prepare('SELECT username FROM users ORDER BY created_at ASC')
-        .all<{ username: string }>();
+        .prepare(
+          'SELECT username, role, banned FROM users ORDER BY created_at ASC'
+        )
+        .all<{ username: string; role: string; banned: number }>();
 
-      return result.results.map((row) => row.username);
+      return result.results.map((row) => ({
+        username: row.username,
+        role: (row.role as UserRole) || 'user',
+        banned: Boolean(row.banned),
+      }));
     } catch (err) {
       console.error('Failed to get all users:', err);
+      throw err;
+    }
+  }
+
+  // 更新用户角色 / 封禁状态（直接写入 users 表）
+  async updateUserMeta(
+    userName: string,
+    meta: { role?: UserRole; banned?: boolean }
+  ): Promise<void> {
+    try {
+      const db = await this.getDatabase();
+      const sets: string[] = [];
+      const values: any[] = [];
+      if (meta.role) {
+        sets.push('role = ?');
+        values.push(meta.role);
+      }
+      if (typeof meta.banned === 'boolean') {
+        sets.push('banned = ?');
+        values.push(meta.banned ? 1 : 0);
+      }
+      if (sets.length === 0) return;
+      values.push(userName);
+
+      await db
+        .prepare(`UPDATE users SET ${sets.join(', ')} WHERE username = ?`)
+        .bind(...values)
+        .run();
+    } catch (err) {
+      console.error('Failed to update user meta:', err);
       throw err;
     }
   }

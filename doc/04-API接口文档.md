@@ -130,7 +130,7 @@ Vercel-CDN-Cache-Control: public, s-maxage=<t>
 - localstorage 模式直接返回 `400 { error: '当前模式不支持注册' }`。
 - 未开放注册（`AllowRegister=false`）→ `400`。
 - 用户名与站长重复/已存在 → `400`。
-- 成功：`db.registerUser` + 写入 `UserConfig.Users` + 保存配置 + 签发 Cookie。
+- 成功：`db.registerUser`（用户名/密码/角色写入用户表）+ 签发 Cookie。
 
 ### POST `/api/logout`
 

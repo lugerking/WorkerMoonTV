@@ -23,6 +23,18 @@ export interface Favorite {
   search_title: string; // 搜索时使用的标题
 }
 
+// 用户角色
+export type UserRole = 'user' | 'admin' | 'owner';
+
+// 用户信息（含角色与封禁状态）
+// 唯一数据源为存储层（D1 的 users 表 / Redis 的 u:<name>:role|banned），
+// 不再冗余存放在管理员配置中。
+export interface UserInfo {
+  username: string;
+  role: UserRole;
+  banned?: boolean;
+}
+
 // 存储接口
 export interface IStorage {
   // 播放记录相关
@@ -56,8 +68,14 @@ export interface IStorage {
   addSearchHistory(userName: string, keyword: string): Promise<void>;
   deleteSearchHistory(userName: string, keyword?: string): Promise<void>;
 
-  // 用户列表
-  getAllUsers(): Promise<string[]>;
+  // 用户列表（含角色与封禁状态）
+  getAllUsers(): Promise<UserInfo[]>;
+
+  // 更新用户角色 / 封禁状态
+  updateUserMeta(
+    userName: string,
+    meta: { role?: UserRole; banned?: boolean }
+  ): Promise<void>;
 
   // 跳过片头片尾配置相关
   getSkipConfig(

@@ -7,35 +7,32 @@ import { AdminConfig } from './admin.types';
  *
  * 配置属于「全局单份、读极多、写极少」的数据，故存于 KV（绑定 `CONFIG_KV`）。
  *
- * **分片设计**：不再用一个 key 存整份 JSON，而是按 `AdminConfig` 的顶层字段
- * 拆分为 4 个 key：
+ * **分片设计**：按 `AdminConfig` 的顶层字段拆分为 3 个 key：
  *
- * | key                        | 对应字段           | 主要写入方        |
- * | -------------------------- | ------------------ | ----------------- |
- * | `admin_config:site`        | `SiteConfig`       | 站点配置 Tab      |
- * | `admin_config:sources`     | `SourceConfig`     | 视频源 Tab        |
- * | `admin_config:categories`  | `CustomCategories` | 自定义分类 Tab    |
- * | `admin_config:users`       | `UserConfig`       | 用户 Tab / 注册   |
+ * | key                       | 对应字段           | 主要写入方     |
+ * | ------------------------- | ------------------ | -------------- |
+ * | `admin_config:site`       | `SiteConfig`       | 站点配置 Tab   |
+ * | `admin_config:sources`    | `SourceConfig`     | 视频源 Tab     |
+ * | `admin_config:categories` | `CustomCategories` | 自定义分类 Tab |
  *
- * 好处：修改某一类配置时只写对应分片，避免「改一个字段也重写整份配置」的写放大，
- * 也缩小了并发写入的冲突面。读取时 4 个分片并发获取后组装。
+ * 好处：修改某一类配置时只写对应分片，避免「改一个字段也重写整份配置」的写放大。
+ * 读取时 3 个分片并发获取后组装。
  *
- * 兼容：若检测到旧版整份 key `admin_config`，会自动拆分迁移到 4 个分片并删除旧 key。
+ * 注意：**用户（用户名/密码/角色/封禁）不在 KV 中**，统一存放在用户数据存储
+ * （D1 的 `users` 表等），见 `lib/users.ts`。
+ *
+ * 兼容：若检测到旧版整份 key `admin_config`，会自动拆分迁移到分片并删除旧 key。
  */
 const KV_BINDING = 'CONFIG_KV';
 
 const KEY_SITE = 'admin_config:site';
 const KEY_SOURCES = 'admin_config:sources';
 const KEY_CATEGORIES = 'admin_config:categories';
-const KEY_USERS = 'admin_config:users';
 /** 旧版本使用的整份配置 key（仅用于一次性自动迁移） */
 const KEY_LEGACY = 'admin_config';
 
 type SiteConfig = AdminConfig['SiteConfig'];
-type UserConfig = AdminConfig['UserConfig'];
-type SourceItem = AdminConfig['SourceConfig'][number];
 type SourceConfigList = AdminConfig['SourceConfig'];
-type CategoryItem = AdminConfig['CustomCategories'][number];
 type CategoryList = AdminConfig['CustomCategories'];
 
 // 最小化的 Workers KV 类型（项目未引入 @cloudflare/workers-types，故本地声明，
@@ -84,10 +81,10 @@ async function writeShard(
 }
 
 /**
- * 读取管理员配置：并发读取 4 个分片后组装。
+ * 读取管理员配置：并发读取 3 个分片后组装。
  *
  * - 任一分片存在即视为已初始化；
- * - 若 4 个分片都不存在但存在旧版整份 key，则自动拆分迁移并返回；
+ * - 若分片都不存在但存在旧版整份 key，则自动拆分迁移并返回；
  * - 全部不存在则返回 null（由 `config.ts` 用环境变量 + config.json 完成初始化）。
  */
 export async function getAdminConfig(): Promise<AdminConfig | null> {
@@ -95,17 +92,15 @@ export async function getAdminConfig(): Promise<AdminConfig | null> {
   if (!kv) return null;
 
   try {
-    const [site, users, sources, categories] = await Promise.all([
+    const [site, sources, categories] = await Promise.all([
       readShard<SiteConfig>(kv, KEY_SITE),
-      readShard<UserConfig>(kv, KEY_USERS),
       readShard<SourceConfigList>(kv, KEY_SOURCES),
       readShard<CategoryList>(kv, KEY_CATEGORIES),
     ]);
 
-    if (site || users || sources || categories) {
+    if (site || sources || categories) {
       return {
         SiteConfig: site ?? ({} as SiteConfig),
-        UserConfig: users ?? { AllowRegister: false, Users: [] },
         SourceConfig: sources ?? [],
         CustomCategories: categories ?? [],
       };
@@ -128,7 +123,7 @@ export async function getAdminConfig(): Promise<AdminConfig | null> {
   }
 }
 
-/** 写入整份管理员配置（拆分为 4 个分片并发写入）。 */
+/** 写入整份管理员配置（拆分为 3 个分片并发写入）。 */
 export async function setAdminConfig(config: AdminConfig): Promise<void> {
   const kv = getKV();
   if (!kv) return;
@@ -136,11 +131,6 @@ export async function setAdminConfig(config: AdminConfig): Promise<void> {
   try {
     await Promise.all([
       writeShard(kv, KEY_SITE, config.SiteConfig ?? {}),
-      writeShard(
-        kv,
-        KEY_USERS,
-        config.UserConfig ?? { AllowRegister: false, Users: [] }
-      ),
       writeShard(kv, KEY_SOURCES, config.SourceConfig ?? []),
       writeShard(kv, KEY_CATEGORIES, config.CustomCategories ?? []),
     ]);
@@ -174,12 +164,3 @@ export async function setCategoryConfig(
   if (!kv) return;
   await writeShard(kv, KEY_CATEGORIES, categories);
 }
-
-/** 仅写入「用户配置」分片（用户 Tab / 注册流程）。 */
-export async function setUserConfig(user: UserConfig): Promise<void> {
-  const kv = getKV();
-  if (!kv) return;
-  await writeShard(kv, KEY_USERS, user);
-}
-
-export type { CategoryItem, SiteConfig, SourceItem, UserConfig };

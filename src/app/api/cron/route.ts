@@ -44,7 +44,7 @@ async function refreshRecordAndFavorites() {
   }
 
   try {
-    const users = await db.getAllUsers();
+    const users = (await db.getAllUsers()).map((u) => u.username);
     if (process.env.USERNAME && !users.includes(process.env.USERNAME)) {
       users.push(process.env.USERNAME);
     }

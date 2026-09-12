@@ -64,7 +64,7 @@ export default async function RootLayout({
     const config = await getConfig();
     siteName = config.SiteConfig.SiteName || siteName;
     announcement = config.SiteConfig.Announcement || announcement;
-    enableRegister = config.UserConfig.AllowRegister;
+    enableRegister = config.SiteConfig.AllowRegister;
     imageProxy = config.SiteConfig.ImageProxy;
     doubanProxy = config.SiteConfig.DoubanProxy;
     disableYellowFilter = config.SiteConfig.DisableYellowFilter;

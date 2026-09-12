@@ -1,7 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-console, @typescript-eslint/no-non-null-assertion */
 
-import { getStorage } from '@/lib/db';
-
 import { AdminConfig } from './admin.types';
 import { getAdminConfig, setAdminConfig } from './kv.db';
 import runtimeConfig from './runtime';
@@ -71,21 +69,9 @@ async function initConfig() {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
   if (storageType !== 'localstorage') {
     // 数据库存储，读取并补全管理员配置
-    const storage = getStorage();
-
     try {
       // 从 KV 读取管理员配置（配置已从 D1 迁移到 Workers KV）
       let adminConfig: AdminConfig | null = await getAdminConfig();
-
-      // 获取所有用户名，用于补全 Users
-      let userNames: string[] = [];
-      if (storage && typeof (storage as any).getAllUsers === 'function') {
-        try {
-          userNames = await (storage as any).getAllUsers();
-        } catch (e) {
-          console.error('获取用户列表失败:', e);
-        }
-      }
 
       // 从文件中获取源信息，用于补全源
       const apiSiteEntries = Object.entries(fileConfig.api_site);
@@ -152,42 +138,8 @@ async function initConfig() {
         // 将 Map 转换回数组
         adminConfig.CustomCategories = Array.from(customCategoriesMap.values());
 
-        const existedUsers = new Set(
-          (adminConfig.UserConfig.Users || []).map((u) => u.username)
-        );
-        userNames.forEach((uname) => {
-          if (!existedUsers.has(uname)) {
-            adminConfig!.UserConfig.Users.push({
-              username: uname,
-              role: 'user',
-            });
-          }
-        });
-        // 站长
-        const ownerUser = process.env.USERNAME;
-        if (ownerUser) {
-          adminConfig!.UserConfig.Users = adminConfig!.UserConfig.Users.filter(
-            (u) => u.username !== ownerUser
-          );
-          adminConfig!.UserConfig.Users.unshift({
-            username: ownerUser,
-            role: 'owner',
-          });
-        }
       } else {
         // 数据库中没有配置，创建新的管理员配置
-        let allUsers = userNames.map((uname) => ({
-          username: uname,
-          role: 'user',
-        }));
-        const ownerUser = process.env.USERNAME;
-        if (ownerUser) {
-          allUsers = allUsers.filter((u) => u.username !== ownerUser);
-          allUsers.unshift({
-            username: ownerUser,
-            role: 'owner',
-          });
-        }
         adminConfig = {
           SiteConfig: {
             SiteName: process.env.SITE_NAME || 'MoonTV',
@@ -201,10 +153,7 @@ async function initConfig() {
             DoubanProxy: process.env.NEXT_PUBLIC_DOUBAN_PROXY || '',
             DisableYellowFilter:
               process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true',
-          },
-          UserConfig: {
             AllowRegister: process.env.NEXT_PUBLIC_ENABLE_REGISTER === 'true',
-            Users: allUsers as any,
           },
           SourceConfig: apiSiteEntries.map(([key, site]) => ({
             key,
@@ -247,10 +196,7 @@ async function initConfig() {
         DoubanProxy: process.env.NEXT_PUBLIC_DOUBAN_PROXY || '',
         DisableYellowFilter:
           process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true',
-      },
-      UserConfig: {
         AllowRegister: process.env.NEXT_PUBLIC_ENABLE_REGISTER === 'true',
-        Users: [],
       },
       SourceConfig: Object.entries(fileConfig.api_site).map(([key, site]) => ({
         key,
@@ -288,10 +234,6 @@ export async function getConfig(): Promise<AdminConfig> {
     if (!adminConfig.SiteConfig) {
       adminConfig.SiteConfig = {} as any;
     }
-    if (!adminConfig.UserConfig) {
-      adminConfig.UserConfig = { AllowRegister: false, Users: [] };
-    }
-    adminConfig.UserConfig.Users = adminConfig.UserConfig.Users || [];
 
     // 配置以「数据库」为准：环境变量仅作为「数据库中未设置时」的默认值
     const siteConfig = adminConfig.SiteConfig as any;
@@ -320,8 +262,8 @@ export async function getConfig(): Promise<AdminConfig> {
       siteConfig.DisableYellowFilter =
         process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true';
     }
-    if (adminConfig.UserConfig.AllowRegister == null) {
-      adminConfig.UserConfig.AllowRegister =
+    if (siteConfig.AllowRegister == null) {
+      siteConfig.AllowRegister =
         process.env.NEXT_PUBLIC_ENABLE_REGISTER === 'true';
     }
 
@@ -367,26 +309,6 @@ export async function getConfig(): Promise<AdminConfig> {
     });
     adminConfig.CustomCategories = Array.from(customCategoriesMap.values());
 
-    const ownerUser = process.env.USERNAME || '';
-    // 检查配置中的站长用户是否和 USERNAME 匹配，如果不匹配则降级为普通用户
-    let containOwner = false;
-    adminConfig.UserConfig.Users.forEach((user) => {
-      if (user.username !== ownerUser && user.role === 'owner') {
-        user.role = 'user';
-      }
-      if (user.username === ownerUser) {
-        containOwner = true;
-        user.role = 'owner';
-      }
-    });
-
-    // 如果不在则添加
-    if (!containOwner) {
-      adminConfig.UserConfig.Users.unshift({
-        username: ownerUser,
-        role: 'owner',
-      });
-    }
     cachedConfig = adminConfig;
   } else {
     // DB 无配置，执行一次初始化
@@ -397,16 +319,6 @@ export async function getConfig(): Promise<AdminConfig> {
 
 export async function resetConfig() {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
-  const storage = getStorage();
-  // 获取所有用户名，用于补全 Users
-  let userNames: string[] = [];
-  if (storage && typeof (storage as any).getAllUsers === 'function') {
-    try {
-      userNames = await (storage as any).getAllUsers();
-    } catch (e) {
-      console.error('获取用户列表失败:', e);
-    }
-  }
 
   if (process.env.DOCKER_ENV === 'true') {
     // eslint-disable-next-line @typescript-eslint/no-implied-eval
@@ -425,18 +337,6 @@ export async function resetConfig() {
 
   const apiSiteEntries = Object.entries(fileConfig.api_site);
   const customCategories = fileConfig.custom_category || [];
-  let allUsers = userNames.map((uname) => ({
-    username: uname,
-    role: 'user',
-  }));
-  const ownerUser = process.env.USERNAME;
-  if (ownerUser) {
-    allUsers = allUsers.filter((u) => u.username !== ownerUser);
-    allUsers.unshift({
-      username: ownerUser,
-      role: 'owner',
-    });
-  }
   const adminConfig = {
     SiteConfig: {
       SiteName: process.env.SITE_NAME || 'MoonTV',
@@ -450,10 +350,7 @@ export async function resetConfig() {
       DoubanProxy: process.env.NEXT_PUBLIC_DOUBAN_PROXY || '',
       DisableYellowFilter:
         process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true',
-    },
-    UserConfig: {
       AllowRegister: process.env.NEXT_PUBLIC_ENABLE_REGISTER === 'true',
-      Users: allUsers as any,
     },
     SourceConfig: apiSiteEntries.map(([key, site]) => ({
       key,
@@ -481,7 +378,6 @@ export async function resetConfig() {
     cachedConfig = adminConfig;
   }
   cachedConfig.SiteConfig = adminConfig.SiteConfig;
-  cachedConfig.UserConfig = adminConfig.UserConfig;
   cachedConfig.SourceConfig = adminConfig.SourceConfig;
   cachedConfig.CustomCategories = adminConfig.CustomCategories;
 }

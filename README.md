@@ -103,7 +103,7 @@ npx wrangler secret put PASSWORD
 
 | 绑定名 | 说明 |
 | --- | --- |
-| `CONFIG_KV` | 管理员配置；按 `SiteConfig` / `SourceConfig` / `CustomCategories` / `UserConfig` 拆为 4 个 key（`admin_config:site`、`admin_config:sources`、`admin_config:categories`、`admin_config:users`） |
+| `CONFIG_KV` | 管理员配置；按 `SiteConfig` / `SourceConfig` / `CustomCategories` 拆为 3 个 key（`admin_config:site`、`admin_config:sources`、`admin_config:categories`）。用户数据（含角色/封禁）不在 KV，统一存于 `users` 表 |
 
 创建方式：
 
@@ -131,6 +131,10 @@ npx wrangler d1 execute moontvdatabase --remote --file=schema.sql
 CREATE TABLE IF NOT EXISTS users (
   username TEXT PRIMARY KEY,
   password TEXT NOT NULL,
+  -- 角色：user / admin（站长由环境变量 USERNAME 决定，不落库）
+  role TEXT NOT NULL DEFAULT 'user',
+  -- 是否封禁：0 正常 / 1 已封禁
+  banned INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
 );
 

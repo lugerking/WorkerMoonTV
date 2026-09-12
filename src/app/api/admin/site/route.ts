@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { setSiteConfig } from '@/lib/kv.db';
+import { isAdmin } from '@/lib/users';
 
 export const runtime = 'nodejs';
 
@@ -61,19 +62,14 @@ export async function POST(request: NextRequest) {
 
     const adminConfig = await getConfig();
 
-    // 权限校验
-    if (username !== process.env.USERNAME) {
-      // 管理员
-      const user = adminConfig.UserConfig.Users.find(
-        (u) => u.username === username
-      );
-      if (!user || user.role !== 'admin') {
-        return NextResponse.json({ error: '权限不足' }, { status: 401 });
-      }
+    // 权限校验（用户角色存于用户数据存储）
+    if (username !== process.env.USERNAME && !(await isAdmin(username))) {
+      return NextResponse.json({ error: '权限不足' }, { status: 401 });
     }
 
-    // 更新缓存中的站点设置
+    // 更新缓存中的站点设置（保留 AllowRegister 等未在表单中提交的字段）
     adminConfig.SiteConfig = {
+      ...adminConfig.SiteConfig,
       SiteName,
       Announcement,
       SearchDownstreamMaxPage,

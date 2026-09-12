@@ -1,3 +1,5 @@
+import { UserInfo } from './types';
+
 export interface AdminConfig {
   SiteConfig: {
     SiteName: string;
@@ -7,14 +9,8 @@ export interface AdminConfig {
     ImageProxy: string;
     DoubanProxy: string;
     DisableYellowFilter: boolean;
-  };
-  UserConfig: {
+    /** 是否允许新用户注册（原 UserConfig.AllowRegister，属站点级设置） */
     AllowRegister: boolean;
-    Users: {
-      username: string;
-      role: 'user' | 'admin' | 'owner';
-      banned?: boolean;
-    }[];
   };
   SourceConfig: {
     key: string;
@@ -36,4 +32,6 @@ export interface AdminConfig {
 export interface AdminConfigResult {
   Role: 'owner' | 'admin';
   Config: AdminConfig;
+  /** 用户列表（来自用户数据存储，如 D1 的 users 表），非配置内容 */
+  Users: UserInfo[];
 }

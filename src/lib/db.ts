@@ -2,7 +2,14 @@
 
 import { D1Storage } from './d1.db';
 import { RedisStorage } from './redis.db';
-import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
+import {
+  Favorite,
+  IStorage,
+  PlayRecord,
+  SkipConfig,
+  UserInfo,
+  UserRole,
+} from './types';
 import { UpstashRedisStorage } from './upstash.db';
 
 // storage type 常量: 'localstorage' | 'redis' | 'd1' | 'upstash'，默认 'localstorage'
@@ -143,6 +150,16 @@ export class DbManager {
     return this.storage.checkUserExist(userName);
   }
 
+  // 修改用户密码
+  async changePassword(userName: string, newPassword: string): Promise<void> {
+    await this.storage.changePassword(userName, newPassword);
+  }
+
+  // 删除用户（含密码、角色/封禁、播放记录、收藏、搜索历史）
+  async deleteUser(userName: string): Promise<void> {
+    await this.storage.deleteUser(userName);
+  }
+
   // ---------- 搜索历史 ----------
   async getSearchHistory(userName: string): Promise<string[]> {
     return this.storage.getSearchHistory(userName);
@@ -156,12 +173,22 @@ export class DbManager {
     await this.storage.deleteSearchHistory(userName, keyword);
   }
 
-  // 获取全部用户名
-  async getAllUsers(): Promise<string[]> {
+  // 获取全部用户（含角色与封禁状态）
+  async getAllUsers(): Promise<UserInfo[]> {
     if (typeof (this.storage as any).getAllUsers === 'function') {
       return (this.storage as any).getAllUsers();
     }
     return [];
+  }
+
+  // 更新用户角色 / 封禁状态
+  async updateUserMeta(
+    userName: string,
+    meta: { role?: UserRole; banned?: boolean }
+  ): Promise<void> {
+    if (typeof (this.storage as any).updateUserMeta === 'function') {
+      await (this.storage as any).updateUserMeta(userName, meta);
+    }
   }
 
   // ---------- 跳过片头片尾配置 ----------

@@ -34,6 +34,7 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
 
 import { AdminConfig, AdminConfigResult } from '@/lib/admin.types';
+import type { UserInfo } from '@/lib/types';
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 
 import PageLayout from '@/components/PageLayout';
@@ -122,11 +123,17 @@ const CollapsibleTab = ({
 // 用户配置组件
 interface UserConfigProps {
   config: AdminConfig | null;
+  users: UserInfo[];
   role: 'owner' | 'admin' | null;
   refreshConfig: () => Promise<void>;
 }
 
-const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
+const UserConfig = ({
+  config,
+  users,
+  role,
+  refreshConfig,
+}: UserConfigProps) => {
   const [userSettings, setUserSettings] = useState({
     enableRegistration: false,
   });
@@ -146,9 +153,9 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
 
 
   useEffect(() => {
-    if (config?.UserConfig) {
+    if (config?.SiteConfig) {
       setUserSettings({
-        enableRegistration: config.UserConfig.AllowRegister,
+        enableRegistration: config.SiteConfig.AllowRegister,
       });
     }
   }, [config]);
@@ -290,7 +297,7 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
         </h4>
         <div className='p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800'>
           <div className='text-2xl font-bold text-green-800 dark:text-green-300'>
-            {config.UserConfig.Users.length}
+            {users.length}
           </div>
           <div className='text-sm text-green-600 dark:text-green-400'>
             总用户数
@@ -462,8 +469,7 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
             </thead>
             {/* 按规则排序用户：自己 -> 站长(若非自己) -> 管理员 -> 其他 */}
             {(() => {
-              const sortedUsers = [...config.UserConfig.Users].sort((a, b) => {
-                type UserInfo = (typeof config.UserConfig.Users)[number];
+              const sortedUsers = [...users].sort((a, b) => {
                 const priority = (u: UserInfo) => {
                   if (u.username === currentUsername) return 0;
                   if (u.role === 'owner') return 1;
@@ -1527,6 +1533,7 @@ const SiteConfigComponent = ({ config }: { config: AdminConfig | null }) => {
 
 function AdminPageClient() {
   const [config, setConfig] = useState<AdminConfig | null>(null);
+  const [users, setUsers] = useState<UserInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [role, setRole] = useState<'owner' | 'admin' | null>(null);
@@ -1554,6 +1561,7 @@ function AdminPageClient() {
 
       const data = (await response.json()) as AdminConfigResult;
       setConfig(data.Config);
+      setUsers(data.Users || []);
       setRole(data.Role);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '获取配置失败';
@@ -1583,7 +1591,7 @@ function AdminPageClient() {
   const handleResetConfig = async () => {
     const { isConfirmed } = await Swal.fire({
       title: '确认重置配置',
-      text: '此操作将重置用户封禁和管理员设置、自定义视频源，站点配置将重置为默认值，是否继续？',
+      text: '此操作将重置自定义视频源与分类，站点配置将重置为默认值，是否继续？',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: '确认',
@@ -1675,6 +1683,7 @@ function AdminPageClient() {
             >
               <UserConfig
                 config={config}
+                users={users}
                 role={role}
                 refreshConfig={fetchConfig}
               />

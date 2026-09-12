@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { setCategoryConfig } from '@/lib/kv.db';
+import { isAdmin } from '@/lib/users';
 
 export const runtime = 'nodejs';
 
@@ -45,14 +46,9 @@ export async function POST(request: NextRequest) {
     // 获取配置与存储
     const adminConfig = await getConfig();
 
-    // 权限与身份校验
-    if (username !== process.env.USERNAME) {
-      const userEntry = adminConfig.UserConfig.Users.find(
-        (u) => u.username === username
-      );
-      if (!userEntry || userEntry.role !== 'admin') {
-        return NextResponse.json({ error: '权限不足' }, { status: 401 });
-      }
+    // 权限与身份校验（用户角色存于用户数据存储）
+    if (username !== process.env.USERNAME && !(await isAdmin(username))) {
+      return NextResponse.json({ error: '权限不足' }, { status: 401 });
     }
 
     switch (action) {

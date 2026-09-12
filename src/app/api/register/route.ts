@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateSignature } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
-import { setUserConfig } from '@/lib/kv.db';
 
 export const runtime = 'nodejs';
 
@@ -45,7 +44,7 @@ export async function POST(req: NextRequest) {
 
     const config = await getConfig();
     // 校验是否开放注册
-    if (!config.UserConfig.AllowRegister) {
+    if (!config.SiteConfig.AllowRegister) {
       return NextResponse.json({ error: '当前未开放注册' }, { status: 400 });
     }
 
@@ -70,14 +69,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: '用户已存在' }, { status: 400 });
       }
 
+      // 注册用户；角色/封禁状态即存于用户表中，无需再写入配置
       await db.registerUser(username, password);
-
-      // 添加到配置中并保存
-      config.UserConfig.Users.push({
-        username,
-        role: 'user',
-      });
-      await setUserConfig(config.UserConfig);
 
       // 注册成功，设置认证cookie
       const response = NextResponse.json({ ok: true });

@@ -13,32 +13,96 @@
   }
 }
 
+@layer components {
+  /* 玻璃质感面板 */
+  .glass {
+    @apply bg-white/70 backdrop-blur-xl dark:bg-zinc-950/60;
+  }
+
+  /* 卡片 / 表面 */
+  .surface {
+    @apply rounded-2xl border border-black/5 bg-white/80 shadow-sm backdrop-blur-xl transition-colors dark:border-white/10 dark:bg-zinc-900/50 dark:shadow-none;
+  }
+
+  /* 主操作按钮（强调色渐变 + 辉光） */
+  .btn-accent {
+    @apply inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-3 text-base font-semibold text-white shadow-lg shadow-emerald-500/25 transition-all duration-200 hover:shadow-emerald-500/40 hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* 次要按钮 */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-xl border border-black/10 bg-white/60 px-4 py-3 text-base font-semibold text-gray-700 transition-colors hover:bg-white dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10;
+  }
+
+  /* 区块标题（带强调色短条） */
+  .section-title {
+    @apply flex items-center gap-2 text-lg font-bold tracking-tight text-gray-900 sm:text-2xl dark:text-white;
+  }
+  .section-title::before {
+    content: '';
+    @apply h-5 w-1.5 rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600;
+  }
+
+  /* 区块「查看更多」 */
+  .section-more {
+    @apply flex items-center text-sm text-gray-500 transition-colors hover:text-emerald-600 dark:text-gray-400 dark:hover:text-emerald-400;
+  }
+
+  /* 侧边栏 / 底部导航的导航项 */
+  .nav-item {
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-black/[0.03] hover:text-emerald-600 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-emerald-400;
+  }
+  .nav-item[data-active='true'] {
+    @apply bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400;
+  }
+  .nav-item svg {
+    @apply text-current opacity-90;
+  }
+
+  /* 品牌字标（渐变） */
+  .brand-mark {
+    @apply bg-gradient-to-r from-emerald-500 to-emerald-400 bg-clip-text text-transparent dark:from-emerald-400 dark:to-emerald-300;
+  }
+}
+
 :root {
-  --foreground-rgb: 255, 255, 255;
+  --foreground-rgb: 24, 24, 27;
+  --accent: 16 185 129; /* emerald-500 */
 }
 
 html,
 body {
   height: 100%;
   overflow-x: hidden;
-  /* 阻止 iOS Safari 拉动回弹 */
   overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
 }
 
+::selection {
+  background: rgba(var(--accent) / 0.25);
+  color: inherit;
+}
+
+/* 浅色：柔和天光渐变 */
 html:not(.dark) body {
-  background: linear-gradient(
-    180deg,
-    #e6f3fb 0%,
-    #eaf3f7 18%,
-    #f7f7f3 38%,
-    #e9ecef 60%,
-    #dbe3ea 80%,
-    #d3dde6 100%
-  );
+  background:
+    radial-gradient(1100px 620px at 8% -10%, rgba(16, 185, 129, 0.1), transparent 60%),
+    radial-gradient(900px 520px at 100% -5%, rgba(56, 189, 248, 0.08), transparent 55%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 55%, #e7edf4 100%);
+  background-attachment: fixed;
+}
+
+/* 深色：影院级深空背景 */
+html.dark body {
+  background:
+    radial-gradient(1200px 640px at 12% -12%, rgba(16, 185, 129, 0.14), transparent 60%),
+    radial-gradient(1000px 560px at 100% 0%, rgba(59, 130, 246, 0.1), transparent 55%),
+    radial-gradient(800px 500px at 50% 120%, rgba(168, 85, 247, 0.06), transparent 60%),
+    #070a10;
   background-attachment: fixed;
 }
 

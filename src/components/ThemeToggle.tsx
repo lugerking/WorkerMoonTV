@@ -15,7 +15,7 @@ export function ThemeToggle() {
     if (!meta) {
       const meta = document.createElement('meta');
       meta.name = 'theme-color';
-      meta.content = theme === 'dark' ? '#0c111c' : '#f9fbfe';
+      meta.content = theme === 'dark' ? '#070a10' : '#f8fafc';
       document.head.appendChild(meta);
     } else {
       meta.setAttribute('content', theme === 'dark' ? '#0c111c' : '#f9fbfe');

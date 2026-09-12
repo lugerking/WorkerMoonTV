@@ -154,8 +154,8 @@ function LoginPageClient() {
       <div className='absolute top-4 right-4'>
         <ThemeToggle />
       </div>
-      <div className='relative z-10 w-full max-w-md rounded-3xl bg-gradient-to-b from-white/90 via-white/70 to-white/40 dark:from-zinc-900/90 dark:via-zinc-900/70 dark:to-zinc-900/40 backdrop-blur-xl shadow-2xl p-10 dark:border dark:border-zinc-800'>
-        <h1 className='text-green-600 tracking-tight text-center text-3xl font-extrabold mb-8 bg-clip-text drop-shadow-sm'>
+      <div className='relative z-10 w-full max-w-md rounded-3xl border border-black/5 bg-white/80 p-10 shadow-elevated backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-900/60'>
+        <h1 className='brand-mark mb-8 text-center text-3xl font-extrabold tracking-tight'>
           {siteName}
         </h1>
         <form onSubmit={handleSubmit} className='space-y-8'>
@@ -202,7 +202,7 @@ function LoginPageClient() {
                 type='button'
                 onClick={handleRegister}
                 disabled={!password || !username || loading}
-                className='flex-1 inline-flex justify-center rounded-lg bg-blue-600 py-3 text-base font-semibold text-white shadow-lg transition-all duration-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50'
+                className='btn-ghost flex-1'
               >
                 {loading ? '注册中...' : '注册'}
               </button>
@@ -211,7 +211,7 @@ function LoginPageClient() {
                 disabled={
                   !password || loading || (shouldAskUsername && !username)
                 }
-                className='flex-1 inline-flex justify-center rounded-lg bg-green-600 py-3 text-base font-semibold text-white shadow-lg transition-all duration-200 hover:from-green-600 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-50'
+                className='btn-accent flex-1'
               >
                 {loading ? '登录中...' : '登录'}
               </button>

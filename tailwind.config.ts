@@ -78,6 +78,12 @@ const config: Config = {
         'slide-down': 'slideDown 0.3s ease-in-out',
         'slide-in-from-right': 'slideInFromRight 0.3s ease-out',
       },
+      boxShadow: {
+        glow: '0 0 0 1px rgba(16,185,129,0.35), 0 10px 30px -10px rgba(16,185,129,0.35)',
+        card: '0 12px 40px -12px rgba(0,0,0,0.45)',
+        elevated:
+          '0 24px 70px -24px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04)',
+      },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-conic':

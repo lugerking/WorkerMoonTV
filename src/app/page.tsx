@@ -156,7 +156,7 @@ function HomeClient() {
 
   return (
     <PageLayout>
-      <div className='px-2 sm:px-10 py-4 sm:py-8 overflow-visible'>
+      <div className='overflow-visible px-4 py-6 sm:px-8 sm:py-10'>
         {/* 顶部 Tab 切换 */}
         <div className='mb-8 flex justify-center'>
           <CapsuleSwitch
@@ -169,12 +169,12 @@ function HomeClient() {
           />
         </div>
 
-        <div className='max-w-[95%] mx-auto'>
+        <div className='mx-auto w-full max-w-7xl'>
           {activeTab === 'favorites' ? (
             // 收藏夹视图
             <section className='mb-8'>
               <div className='mb-4 flex items-center justify-between'>
-                <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
+                <h2 className='section-title'>
                   我的收藏
                 </h2>
                 {favoriteItems.length > 0 && (
@@ -216,12 +216,12 @@ function HomeClient() {
               {/* 热门电影 */}
               <section className='mb-8'>
                 <div className='mb-4 flex items-center justify-between'>
-                  <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
+                  <h2 className='section-title'>
                     热门电影
                   </h2>
                   <Link
                     href='/douban?type=movie'
-                    className='flex items-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                    className='section-more'
                   >
                     查看更多
                     <ChevronRight className='w-4 h-4 ml-1' />
@@ -264,12 +264,12 @@ function HomeClient() {
               {/* 热门剧集 */}
               <section className='mb-8'>
                 <div className='mb-4 flex items-center justify-between'>
-                  <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
+                  <h2 className='section-title'>
                     热门剧集
                   </h2>
                   <Link
                     href='/douban?type=tv'
-                    className='flex items-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                    className='section-more'
                   >
                     查看更多
                     <ChevronRight className='w-4 h-4 ml-1' />
@@ -311,12 +311,12 @@ function HomeClient() {
               {/* 热门综艺 */}
               <section className='mb-8'>
                 <div className='mb-4 flex items-center justify-between'>
-                  <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
+                  <h2 className='section-title'>
                     热门综艺
                   </h2>
                   <Link
                     href='/douban?type=show'
-                    className='flex items-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                    className='section-more'
                   >
                     查看更多
                     <ChevronRight className='w-4 h-4 ml-1' />
@@ -364,9 +364,9 @@ function HomeClient() {
             showAnnouncement ? '' : 'opacity-0 pointer-events-none'
           }`}
         >
-          <div className='w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900 transform transition-all duration-300 hover:shadow-2xl'>
+          <div className='surface mx-auto w-full max-w-md p-6 shadow-elevated'>
             <div className='flex justify-between items-start mb-4'>
-              <h3 className='text-2xl font-bold tracking-tight text-gray-800 dark:text-white border-b border-green-500 pb-1'>
+              <h3 className='border-b border-emerald-500 pb-1 text-2xl font-bold tracking-tight text-gray-800 dark:text-white'>
                 提示
               </h3>
               <button
@@ -377,7 +377,7 @@ function HomeClient() {
             </div>
             <div className='mb-6'>
               <div className='relative overflow-hidden rounded-lg mb-4 bg-green-50 dark:bg-green-900/20'>
-                <div className='absolute inset-y-0 left-0 w-1.5 bg-green-500 dark:bg-green-400'></div>
+                <div className='absolute inset-y-0 left-0 w-1.5 rounded-l-lg bg-emerald-500 dark:bg-emerald-400'></div>
                 <p className='ml-4 text-gray-600 dark:text-gray-300 leading-relaxed'>
                   {announcement}
                 </p>
@@ -385,7 +385,7 @@ function HomeClient() {
             </div>
             <button
               onClick={() => handleCloseAnnouncement(announcement)}
-              className='w-full rounded-lg bg-gradient-to-r from-green-600 to-green-700 px-4 py-3 text-white font-medium shadow-md hover:shadow-lg hover:from-green-700 hover:to-green-800 dark:from-green-600 dark:to-green-700 dark:hover:from-green-700 dark:hover:to-green-800 transition-all duration-300 transform hover:-translate-y-0.5'
+              className='btn-accent w-full'
             >
               我知道了
             </button>

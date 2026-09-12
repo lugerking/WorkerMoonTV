@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "workermoontv",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-08-16",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "routes": [
+    {
+      "pattern": "workermoontv.mytvapp.qzz.io",
+      "custom_domain": true
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "moontvdatabase",
+      "database_id": "add6fcbb-3ca2-4624-b831-a1f61bd5da60"
+    }
+  ],
+  "vars": {
+    "NEXT_PUBLIC_STORAGE_TYPE": "d1",
+    "NEXT_PUBLIC_ENABLE_REGISTER": "true",
+    "USERNAME": "lugerking"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

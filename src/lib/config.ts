@@ -43,6 +43,9 @@ export const API_CONFIG = {
   },
 };
 
+/** 图片缓存数量上限默认值（管理界面可调整，0 表示不限制） */
+export const DEFAULT_IMAGE_CACHE_LIMIT = 500;
+
 // 在模块加载时根据环境决定配置来源
 let fileConfig: ConfigFileStruct;
 let cachedConfig: AdminConfig;
@@ -154,6 +157,7 @@ async function initConfig() {
             DisableYellowFilter:
               process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true',
             AllowRegister: process.env.NEXT_PUBLIC_ENABLE_REGISTER === 'true',
+            ImageCacheLimit: DEFAULT_IMAGE_CACHE_LIMIT,
           },
           SourceConfig: apiSiteEntries.map(([key, site]) => ({
             key,
@@ -197,6 +201,7 @@ async function initConfig() {
         DisableYellowFilter:
           process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true',
         AllowRegister: process.env.NEXT_PUBLIC_ENABLE_REGISTER === 'true',
+        ImageCacheLimit: DEFAULT_IMAGE_CACHE_LIMIT,
       },
       SourceConfig: Object.entries(fileConfig.api_site).map(([key, site]) => ({
         key,
@@ -265,6 +270,9 @@ export async function getConfig(): Promise<AdminConfig> {
     if (siteConfig.AllowRegister == null) {
       siteConfig.AllowRegister =
         process.env.NEXT_PUBLIC_ENABLE_REGISTER === 'true';
+    }
+    if (siteConfig.ImageCacheLimit == null) {
+      siteConfig.ImageCacheLimit = DEFAULT_IMAGE_CACHE_LIMIT;
     }
 
     // 视频源：以数据库为准；config.json 仅补充数据库中尚不存在的源
@@ -351,6 +359,7 @@ export async function resetConfig() {
       DisableYellowFilter:
         process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true',
       AllowRegister: process.env.NEXT_PUBLIC_ENABLE_REGISTER === 'true',
+      ImageCacheLimit: DEFAULT_IMAGE_CACHE_LIMIT,
     },
     SourceConfig: apiSiteEntries.map(([key, site]) => ({
       key,

@@ -1896,7 +1896,7 @@ function PlayPageClient() {
               <div className='bg-gray-300 dark:bg-gray-700 aspect-[2/3] flex items-center justify-center rounded-xl overflow-hidden'>
                 {videoCover ? (
                   <img
-                    src={processImageUrl(videoCover)}
+                    src={processImageUrl(videoCover, videoTitle)}
                     alt={videoTitle}
                     className='w-full h-full object-cover'
                   />

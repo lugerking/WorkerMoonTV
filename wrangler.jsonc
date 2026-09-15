@@ -1,7 +1,11 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "workermoontv",
-  "main": ".open-next/worker.js",
+  "main": "cf-worker/index.ts",
+  "triggers": {
+    // 每日 22:00（北京时间）= 14:00 UTC：刷新播放记录并清理图片缓存
+    "crons": ["0 14 * * *"]
+  },
   "compatibility_date": "2025-08-16",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
@@ -29,6 +33,12 @@
     {
       "binding": "CONFIG_KV",
       "id": "103d6ff3d73a40b6bd73c1749f27332c"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "IMAGE_CACHE",
+      "bucket_name": "moontv-image-cache"
     }
   ],
   "vars": {

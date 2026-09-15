@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
       ImageProxy,
       DoubanProxy,
       DisableYellowFilter,
+      ImageCacheLimit,
     } = body as {
       SiteName: string;
       Announcement: string;
@@ -45,6 +46,7 @@ export async function POST(request: NextRequest) {
       ImageProxy: string;
       DoubanProxy: string;
       DisableYellowFilter: boolean;
+      ImageCacheLimit: number;
     };
 
     // 参数校验
@@ -55,7 +57,8 @@ export async function POST(request: NextRequest) {
       typeof SiteInterfaceCacheTime !== 'number' ||
       typeof ImageProxy !== 'string' ||
       typeof DoubanProxy !== 'string' ||
-      typeof DisableYellowFilter !== 'boolean'
+      typeof DisableYellowFilter !== 'boolean' ||
+      typeof ImageCacheLimit !== 'number'
     ) {
       return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
     }
@@ -77,6 +80,7 @@ export async function POST(request: NextRequest) {
       ImageProxy,
       DoubanProxy,
       DisableYellowFilter,
+      ImageCacheLimit: Math.max(0, Math.floor(ImageCacheLimit)),
     };
 
     // 写入 KV（仅「站点设置」分片）

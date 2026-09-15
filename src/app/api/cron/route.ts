@@ -2,8 +2,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
+import { DEFAULT_IMAGE_CACHE_LIMIT, getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 import { fetchVideoDetail } from '@/lib/fetchVideoDetail';
+import { cleanupImageCache } from '@/lib/image-cache';
 import { SearchResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -14,10 +16,13 @@ export async function GET(request: NextRequest) {
     console.log('Cron job triggered:', new Date().toISOString());
 
     refreshRecordAndFavorites();
+    // 图片缓存清理需要保证执行完（Worker 可能在响应返回后终止未 await 的任务）
+    const imageCache = await cleanupImageCacheTask();
 
     return NextResponse.json({
       success: true,
       message: 'Cron job executed successfully',
+      imageCache,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -32,6 +37,23 @@ export async function GET(request: NextRequest) {
       },
       { status: 500 }
     );
+  }
+}
+
+// 图片缓存清理：按管理界面配置的上限，淘汰「近期访问频率」最低的图片
+async function cleanupImageCacheTask() {
+  try {
+    const config = await getConfig();
+    const configured = Number(config?.SiteConfig?.ImageCacheLimit);
+    const limit = Number.isFinite(configured)
+      ? configured
+      : DEFAULT_IMAGE_CACHE_LIMIT;
+    const result = await cleanupImageCache(limit);
+    console.log('[cron] 图片缓存清理结果:', JSON.stringify(result));
+    return result;
+  } catch (error) {
+    console.error('[cron] 图片缓存清理失败:', error);
+    return { error: (error as Error).message };
   }
 }
 

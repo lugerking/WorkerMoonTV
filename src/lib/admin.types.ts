@@ -11,6 +11,8 @@ export interface AdminConfig {
     DisableYellowFilter: boolean;
     /** 是否允许新用户注册（原 UserConfig.AllowRegister，属站点级设置） */
     AllowRegister: boolean;
+    /** 图片缓存数量上限：超过后按「近期访问频率」清理最不常用的图（0 表示不限制） */
+    ImageCacheLimit: number;
   };
   SourceConfig: {
     key: string;

@@ -61,6 +61,7 @@ interface SiteConfig {
   ImageProxy: string;
   DoubanProxy: string;
   DisableYellowFilter: boolean;
+  ImageCacheLimit: number;
 }
 
 // 视频源数据类型
@@ -1305,6 +1306,7 @@ const SiteConfigComponent = ({ config }: { config: AdminConfig | null }) => {
     ImageProxy: '',
     DoubanProxy: '',
     DisableYellowFilter: false,
+    ImageCacheLimit: 500,
   });
   // 保存状态
   const [saving, setSaving] = useState(false);
@@ -1317,6 +1319,10 @@ const SiteConfigComponent = ({ config }: { config: AdminConfig | null }) => {
         ImageProxy: config.SiteConfig.ImageProxy || '',
         DoubanProxy: config.SiteConfig.DoubanProxy || '',
         DisableYellowFilter: config.SiteConfig.DisableYellowFilter || false,
+        ImageCacheLimit:
+          typeof config.SiteConfig.ImageCacheLimit === 'number'
+            ? config.SiteConfig.ImageCacheLimit
+            : 500,
       });
     }
   }, [config]);
@@ -1513,6 +1519,34 @@ const SiteConfigComponent = ({ config }: { config: AdminConfig | null }) => {
         </p>
       </div>
 
+      {/* 图片缓存上限 */}
+      <div>
+        <label
+          className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'
+        >
+          图片缓存上限（张）
+        </label>
+        <input
+          type='number'
+          min={0}
+          value={siteSettings.ImageCacheLimit}
+          onChange={(e) =>
+            setSiteSettings((prev) => ({
+              ...prev,
+              ImageCacheLimit: Math.max(0, Number(e.target.value) || 0),
+            }))
+          }
+          className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100'
+        />
+        <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+          海报缓存到 R2
+          的数量上限，超过后按「近期访问频率」清理最不常用的图片（每日 22:00
+          自动执行，也可在下方立即清理）。填 0 表示不限制。
+        </p>
+      </div>
+
+      <ImageCacheCleanup />
+
       {/* 操作按钮 */}
       <div className='flex justify-end'>
         <button
@@ -1526,6 +1560,104 @@ const SiteConfigComponent = ({ config }: { config: AdminConfig | null }) => {
         >
           {saving ? '保存中…' : '保存'}
         </button>
+      </div>
+    </div>
+  );
+};
+
+// 图片缓存：统计与手动清理
+const ImageCacheCleanup = () => {
+  const [stats, setStats] = useState<{
+    total: number;
+    sizeBytes: number;
+    limit: number;
+    available: boolean;
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+
+  const loadStats = async () => {
+    try {
+      setLoading(true);
+      const resp = await fetch('/api/admin/image-cache');
+      if (!resp.ok) throw new Error(`获取失败: ${resp.status}`);
+      setStats(await resp.json());
+    } catch (err) {
+      showError(err instanceof Error ? err.message : '获取缓存统计失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleCleanup = async () => {
+    try {
+      setCleaning(true);
+      const resp = await fetch('/api/admin/image-cache', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || `清理失败: ${resp.status}`);
+      if (data.unlimited) {
+        showSuccess('当前未设置上限，无需清理');
+      } else {
+        showSuccess(
+          `清理完成：删除 ${data.deleted} 张，剩余 ${data.after} 张${
+            data.incomplete ? '（未清理干净，可再次点击）' : ''
+          }`
+        );
+      }
+      await loadStats();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : '清理失败');
+    } finally {
+      setCleaning(false);
+    }
+  };
+
+  const desc = !stats
+    ? '统计加载中…'
+    : !stats.available
+      ? '未绑定 R2 存储（IMAGE_CACHE），缓存未启用'
+      : `当前 ${stats.total} 张，占用 ${(stats.sizeBytes / 1048576).toFixed(1)} MB，上限 ${stats.limit} 张`;
+
+  return (
+    <div className='border-t border-gray-200 dark:border-gray-700 pt-6'>
+      <div className='flex items-center justify-between gap-4'>
+        <div>
+          <h3 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+            图片缓存清理
+          </h3>
+          <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+            {desc}
+          </p>
+        </div>
+        <div className='flex gap-2 shrink-0'>
+          <button
+            onClick={loadStats}
+            disabled={loading}
+            className='px-3 py-2 text-sm bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 rounded-lg transition-colors'
+          >
+            {loading ? '刷新中…' : '刷新'}
+          </button>
+          <button
+            onClick={handleCleanup}
+            disabled={cleaning}
+            className={`px-3 py-2 text-sm ${
+              cleaning
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-green-600 hover:bg-green-700'
+            } text-white rounded-lg transition-colors`}
+          >
+            {cleaning ? '清理中…' : '立即清理'}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,23 @@
 import { NextResponse } from 'next/server';
 
+import { cacheKeyFor, getImageCacheBucket, runInBackground } from '@/lib/image-cache';
+
 export const runtime = 'nodejs';
+
+// 单张图片超过该大小则不写入 R2（避免大对象占用内存/存储）
+const MAX_CACHEABLE_SIZE = 5 * 1024 * 1024;
+// 超过该大小直接透传，不缓冲到内存
+const MAX_BUFFER_SIZE = 10 * 1024 * 1024;
+
+function buildHeaders(contentType: string): Headers {
+  const headers = new Headers();
+  headers.set('Content-Type', contentType);
+  headers.set('Cache-Control', 'public, max-age=15720000, s-maxage=15720000'); // 缓存半年
+  headers.set('CDN-Cache-Control', 'public, s-maxage=15720000');
+  headers.set('Vercel-CDN-Cache-Control', 'public, s-maxage=15720000');
+  headers.set('Access-Control-Allow-Origin', '*');
+  return headers;
+}
 
 // 拦截内网/本地主机，降低开放代理被滥用于 SSRF 的风险
 function isBlockedHost(hostname: string): boolean {
@@ -35,8 +52,10 @@ function isBlockedHost(hostname: string): boolean {
 }
 
 // 图片代理：让浏览器经同源代理加载第三方海报，绕开防盗链/混合内容/地域封锁
+// 并可选使用 R2 作为缓存层，命中后直接返回，省去回源
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+
   // 支持 base64url 编码的 u= 参数：前端用它避免 URL 中出现可读第三方域名，
   // 从而躲过广告/追踪拦截器对 `url=https://...` 类参数的拦截。
   const encoded = searchParams.get('u');
@@ -46,6 +65,19 @@ export async function GET(request: Request) {
       imageUrl = Buffer.from(encoded, 'base64url').toString('utf-8');
     } catch {
       imageUrl = null;
+    }
+  }
+
+  // 可选的片名（base64url 编码）：记录到缓存对象的元数据中，便于在 R2 里辨识该图属于哪部影片
+  const encodedTitle = searchParams.get('t');
+  let imageTitle = '';
+  if (encodedTitle) {
+    try {
+      imageTitle = Buffer.from(encodedTitle, 'base64url')
+        .toString('utf-8')
+        .slice(0, 200);
+    } catch {
+      imageTitle = '';
     }
   }
 
@@ -66,6 +98,39 @@ export async function GET(request: Request) {
   }
   if (isBlockedHost(target.hostname)) {
     return NextResponse.json({ error: 'Blocked host' }, { status: 403 });
+  }
+
+  const bucket = getImageCacheBucket();
+  const key = bucket ? await cacheKeyFor(imageUrl) : '';
+
+  // 1) 命中 R2 缓存：直接返回，并异步累加访问频次
+  if (bucket) {
+    try {
+      const cached = await bucket.get(key);
+      if (cached) {
+        const bytes = await cached.arrayBuffer();
+        const contentType = cached.customMetadata?.contentType || 'image/jpeg';
+        const headers = buildHeaders(contentType);
+        headers.set('X-Image-Cache', 'HIT');
+
+        const prevCount = Number(cached.customMetadata?.count ?? '1') || 1;
+        runInBackground(
+          bucket.put(key, bytes, {
+            customMetadata: {
+              contentType,
+              url: imageUrl.slice(0, 512),
+              title: imageTitle || cached.customMetadata?.title || '',
+              count: String(prevCount + 1),
+              lastAccess: String(Date.now()),
+            },
+          })
+        );
+
+        return new Response(bytes, { status: 200, headers });
+      }
+    } catch {
+      // 缓存异常不应影响用户：降级为回源
+    }
   }
 
   // 防盗链策略：
@@ -106,19 +171,34 @@ export async function GET(request: Request) {
       );
     }
 
-    const headers = new Headers();
-    if (contentType) {
-      headers.set('Content-Type', contentType);
-    }
-    headers.set('Cache-Control', 'public, max-age=15720000, s-maxage=15720000'); // 缓存半年
-    headers.set('CDN-Cache-Control', 'public, s-maxage=15720000');
-    headers.set('Vercel-CDN-Cache-Control', 'public, s-maxage=15720000');
-    headers.set('Access-Control-Allow-Origin', '*');
+    const resolvedType = contentType || 'image/jpeg';
+    const headers = buildHeaders(resolvedType);
+    headers.set('X-Image-Cache', bucket ? 'MISS' : 'BYPASS');
 
-    return new Response(imageResponse.body, {
-      status: 200,
-      headers,
-    });
+    // 超大响应直接透传，不缓冲进内存
+    const declaredSize = Number(imageResponse.headers.get('content-length') || 0);
+    if (declaredSize > MAX_BUFFER_SIZE) {
+      return new Response(imageResponse.body, { status: 200, headers });
+    }
+
+    const bytes = await imageResponse.arrayBuffer();
+
+    // 2) 回源成功后写入 R2
+    if (bucket && bytes.byteLength > 0 && bytes.byteLength <= MAX_CACHEABLE_SIZE) {
+      runInBackground(
+        bucket.put(key, bytes, {
+          customMetadata: {
+            contentType: resolvedType,
+            url: imageUrl.slice(0, 512),
+            title: imageTitle,
+            count: '1',
+            lastAccess: String(Date.now()),
+          },
+        })
+      );
+    }
+
+    return new Response(bytes, { status: 200, headers });
   } catch (error) {
     return NextResponse.json(
       { error: 'Error fetching image' },

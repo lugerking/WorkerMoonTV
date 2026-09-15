@@ -31,7 +31,7 @@ export function getImageProxyUrl(): string | null {
 /**
  * 处理图片 URL，如果设置了图片代理则使用代理
  */
-export function processImageUrl(originalUrl: string): string {
+export function processImageUrl(originalUrl: string, title?: string): string {
   if (!originalUrl) return originalUrl;
 
   const proxyUrl = getImageProxyUrl();
@@ -45,6 +45,14 @@ export function processImageUrl(originalUrl: string): string {
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=+$/, '');
+    // 片名同样用 base64url 编码传递（中文/特殊字符安全），供代理记录到缓存对象的元数据中
+    if (title) {
+      const encTitle = btoa(unescape(encodeURIComponent(title.slice(0, 100))))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+      return `${base}?u=${enc}&t=${encTitle}`;
+    }
     return `${base}?u=${enc}`;
   }
 

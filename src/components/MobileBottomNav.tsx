@@ -2,10 +2,12 @@
 
 'use client';
 
-import { Clover, Film, Home, Search, Star, Tv } from 'lucide-react';
+import { Clover, Film, HardDrive, Home, Search, Star, Tv } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+
+import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 
 interface MobileBottomNavProps {
   /**
@@ -42,15 +44,21 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
 
   useEffect(() => {
     const runtimeConfig = (window as any).RUNTIME_CONFIG;
+    const items: { icon: any; label: string; href: string }[] = [];
     if (runtimeConfig?.CUSTOM_CATEGORIES?.length > 0) {
-      setNavItems((prevItems) => [
-        ...prevItems,
-        {
-          icon: Star,
-          label: '自定义',
-          href: '/douban?type=custom',
-        },
-      ]);
+      items.push({
+        icon: Star,
+        label: '自定义',
+        href: '/douban?type=custom',
+      });
+    }
+    // 「缓存」入口仅对管理员展示（缓存功能为管理员专属）
+    const auth = getAuthInfoFromBrowserCookie();
+    if (auth?.role === 'owner' || auth?.role === 'admin') {
+      items.push({ icon: HardDrive, label: '缓存', href: '/cache' });
+    }
+    if (items.length > 0) {
+      setNavItems((prevItems) => [...prevItems, ...items]);
     }
   }, []);
 

@@ -126,6 +126,9 @@ function shouldSkipAuth(pathname: string): boolean {
     '/logo.png',
     '/screenshot.png',
     '/api/image-proxy',
+    // 视频缓存代理需免鉴权：Safari / 夸克等 WebKit 的原生 HLS 播放器
+    // 不保证携带 Cookie，鉴权会导致缓存播放失败
+    '/api/video-cache',
   ];
 
   return skipPaths.some((path) => pathname.startsWith(path));

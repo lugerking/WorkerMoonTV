@@ -31,6 +31,16 @@ export function getImageProxyUrl(): string | null {
 /**
  * 处理图片 URL，如果设置了图片代理则使用代理
  */
+/** 前端可用的 base64url 编码（UTF-8 安全，用于 URL 参数） */
+export function encodeBase64Url(input: string): string {
+  const bytes = new TextEncoder().encode(input);
+  let bin = '';
+  bytes.forEach((b) => {
+    bin += String.fromCharCode(b);
+  });
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 export function processImageUrl(originalUrl: string, title?: string): string {
   if (!originalUrl) return originalUrl;
 

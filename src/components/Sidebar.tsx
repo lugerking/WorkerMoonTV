@@ -2,7 +2,7 @@
 
 'use client';
 
-import { Clover, Film, Home, Menu, Search, Star, Tv } from 'lucide-react';
+import { Clover, Film, HardDrive, Home, Menu, Search, Star, Tv } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -12,6 +12,8 @@ import {
   useLayoutEffect,
   useState,
 } from 'react';
+
+import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 
 import { useSite } from './SiteProvider';
 
@@ -121,6 +123,14 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
     isCollapsed,
   };
 
+  // 「缓存」入口仅对管理员展示（缓存功能为管理员专属）
+  const [showCache, setShowCache] = useState(false);
+
+  useEffect(() => {
+    const auth = getAuthInfoFromBrowserCookie();
+    setShowCache(auth?.role === 'owner' || auth?.role === 'admin');
+  }, []);
+
   const [menuItems, setMenuItems] = useState([
     {
       icon: Film,
@@ -229,6 +239,25 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
                   </span>
                 )}
               </Link>
+              {showCache && (
+                <Link
+                  href='/cache'
+                  onClick={() => setActive('/cache')}
+                  data-active={active === '/cache'}
+                  className={`nav-item ${
+                    isCollapsed ? 'w-full max-w-none mx-0' : 'mx-0'
+                  }`}
+                >
+                  <div className='w-4 h-4 flex items-center justify-center'>
+                    <HardDrive className='h-4 w-4 text-gray-500 group-hover:text-green-600 data-[active=true]:text-green-700 dark:text-gray-400 dark:group-hover:text-green-400 dark:data-[active=true]:text-green-400' />
+                  </div>
+                  {!isCollapsed && (
+                    <span className='whitespace-nowrap transition-opacity duration-200 opacity-100'>
+                      缓存
+                    </span>
+                  )}
+                </Link>
+              )}
             </nav>
 
             {/* 菜单项 */}

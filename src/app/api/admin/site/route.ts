@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
       DoubanProxy,
       DisableYellowFilter,
       ImageCacheLimit,
+      VideoCacheLimitGB,
     } = body as {
       SiteName: string;
       Announcement: string;
@@ -47,6 +48,7 @@ export async function POST(request: NextRequest) {
       DoubanProxy: string;
       DisableYellowFilter: boolean;
       ImageCacheLimit: number;
+      VideoCacheLimitGB: number;
     };
 
     // 参数校验
@@ -58,7 +60,8 @@ export async function POST(request: NextRequest) {
       typeof ImageProxy !== 'string' ||
       typeof DoubanProxy !== 'string' ||
       typeof DisableYellowFilter !== 'boolean' ||
-      typeof ImageCacheLimit !== 'number'
+      typeof ImageCacheLimit !== 'number' ||
+      typeof VideoCacheLimitGB !== 'number'
     ) {
       return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
     }
@@ -81,6 +84,7 @@ export async function POST(request: NextRequest) {
       DoubanProxy,
       DisableYellowFilter,
       ImageCacheLimit: Math.max(0, Math.floor(ImageCacheLimit)),
+      VideoCacheLimitGB: Math.max(0, Number(VideoCacheLimitGB) || 0),
     };
 
     // 写入 KV（仅「站点设置」分片）

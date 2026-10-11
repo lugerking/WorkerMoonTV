@@ -22,7 +22,11 @@ import {
   subscribeToDataUpdates,
 } from '@/lib/db.client';
 import { SearchResult } from '@/lib/types';
-import { getVideoResolutionFromM3u8, processImageUrl } from '@/lib/utils';
+import {
+  encodeBase64Url,
+  getVideoResolutionFromM3u8,
+  processImageUrl,
+} from '@/lib/utils';
 
 import EpisodeSelector from '@/components/EpisodeSelector';
 import PageLayout from '@/components/PageLayout';
@@ -51,6 +55,21 @@ function PlayPageClient() {
 
   // 收藏状态
   const [favorited, setFavorited] = useState(false);
+
+  // 记录当前播放地址，避免重复 setState 触发播放器重建
+  const videoUrlRef = useRef<string>('');
+
+  // 视频缓存（单集，仅管理员）
+  const [canManageCache, setCanManageCache] = useState(false);
+  const [cacheBusy, setCacheBusy] = useState(false);
+  const [cacheProgress, setCacheProgress] = useState<{
+    cached: number;
+    total: number;
+  } | null>(null);
+  // 各集缓存状态（键为该集原始 m3u8 地址）。已缓存的集自动走本站缓存代理播放。
+  const [cachedEpisodes, setCachedEpisodes] = useState<
+    Record<string, { cached: boolean; bytes: number }>
+  >({});
 
   // 跳过片头片尾配置
   const [skipConfig, setSkipConfig] = useState<{
@@ -411,7 +430,11 @@ function PlayPageClient() {
       setVideoUrl('');
       return;
     }
-    const newUrl = detailData?.episodes[episodeIndex] || '';
+    const rawUrl = detailData?.episodes[episodeIndex] || '';
+    // 该集已缓存时走本站缓存代理播放（缓存未命中会自动回源，不影响播放）
+    const newUrl = cachedEpisodes[rawUrl]?.cached
+      ? `/api/video-cache?u=${encodeURIComponent(encodeBase64Url(rawUrl))}`
+      : rawUrl;
     if (newUrl !== videoUrl) {
       setVideoUrl(newUrl);
     }
@@ -577,7 +600,9 @@ function PlayPageClient() {
   // 当集数索引变化时自动更新视频地址
   useEffect(() => {
     updateVideoUrl(detail, currentEpisodeIndex);
-  }, [detail, currentEpisodeIndex]);
+    // cachedEpisodes 变化时需重算（缓存完成后切换到缓存播放）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail, currentEpisodeIndex, cachedEpisodes]);
 
   // 进入页面时直接获取全部源信息
   useEffect(() => {
@@ -1103,6 +1128,129 @@ function PlayPageClient() {
 
     return unsubscribe;
   }, [currentSource, currentId]);
+
+  // ---------------------------------------------------------------------------
+  // 视频缓存（单集缓存 / 更新 / 删除 / 播放缓存，仅管理员）
+  // ---------------------------------------------------------------------------
+  const formatBytes = (bytes: number) => {
+    if (!bytes) return '0 MB';
+    const mb = bytes / 1024 / 1024;
+    return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
+  };
+
+  // 当前集的原始 m3u8 地址（缓存操作与播放地址改写的基准）
+  const episodeUrl = detail?.episodes?.[currentEpisodeIndex] || '';
+  const episodeCache = episodeUrl ? cachedEpisodes[episodeUrl] : undefined;
+
+  // 判断是否管理员（非管理员不显示缓存入口）
+  useEffect(() => {
+    (async () => {
+      try {
+        const resp = await fetch('/api/admin/video-cache', { method: 'GET' });
+        setCanManageCache(resp.ok);
+      } catch {
+        setCanManageCache(false);
+      }
+    })();
+  }, []);
+
+  // 切换剧集时查询该集缓存状态
+  useEffect(() => {
+    if (!canManageCache || !episodeUrl) return;
+    if (cachedEpisodes[episodeUrl]) return; // 已查询过
+    (async () => {
+      try {
+        const resp = await fetch(
+          `/api/admin/video-cache?u=${encodeURIComponent(encodeBase64Url(episodeUrl))}`
+        );
+        if (!resp.ok) return;
+        const data = await resp.json();
+        setCachedEpisodes((prev) => ({
+          ...prev,
+          [episodeUrl]: { cached: !!data.cached, bytes: data.bytes || 0 },
+        }));
+      } catch {
+        // 查询失败不阻塞播放
+      }
+    })();
+  }, [canManageCache, episodeUrl]);
+
+  // 逐批缓存该集分片，直到 done（已缓存的分片会跳过，重复调用即「更新/补全缓存」）
+  const handleCacheEpisode = async () => {
+    if (!episodeUrl) return;
+    setCacheBusy(true);
+    setCacheProgress(null);
+    try {
+      let offset = 0;
+      // 批次上限保护，避免异常时空转
+      for (let i = 0; i < 500; i++) {
+        const resp = await fetch('/api/admin/video-cache', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'cache',
+            url: episodeUrl,
+            title: videoTitle,
+            offset,
+            // 归属信息：用于「缓存」页按影片聚合与选集批量操作
+            source: currentSource,
+            vid: currentId,
+            epIndex: currentEpisodeIndex,
+            epTotal: totalEpisodes,
+          }),
+        });
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          throw new Error(data.error || `缓存失败: ${resp.status}`);
+        }
+        const data = await resp.json();
+        offset = data.nextOffset || 0;
+        setCacheProgress({ cached: offset, total: data.total || 0 });
+        if (data.done) break;
+      }
+      const resp = await fetch(
+        `/api/admin/video-cache?u=${encodeURIComponent(encodeBase64Url(episodeUrl))}`
+      );
+      if (resp.ok) {
+        const st = await resp.json();
+        setCachedEpisodes((prev) => ({
+          ...prev,
+          [episodeUrl]: { cached: !!st.cached, bytes: st.bytes || 0 },
+        }));
+      }
+    } catch (err) {
+      console.error('缓存失败:', err);
+      alert(err instanceof Error ? err.message : '缓存失败');
+    } finally {
+      setCacheBusy(false);
+      setCacheProgress(null);
+    }
+  };
+
+  const handleDeleteCache = async () => {
+    if (!episodeUrl) return;
+    setCacheBusy(true);
+    try {
+      const resp = await fetch('/api/admin/video-cache', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', url: episodeUrl }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || `删除失败: ${resp.status}`);
+      }
+      setCachedEpisodes((prev) => ({
+        ...prev,
+        [episodeUrl]: { cached: false, bytes: 0 },
+      }));
+    } catch (err) {
+      console.error('删除缓存失败:', err);
+      alert(err instanceof Error ? err.message : '删除缓存失败');
+    } finally {
+      setCacheBusy(false);
+    }
+  };
 
   // 切换收藏
   const handleToggleFavorite = async () => {
@@ -1859,6 +2007,45 @@ function PlayPageClient() {
                 >
                   <FavoriteIcon filled={favorited} />
                 </button>
+
+                {/* 视频缓存：仅管理员可见可操作 */}
+                {canManageCache && episodeUrl && (
+                  <div className='ml-4 flex items-center gap-2 flex-shrink-0'>
+                    {episodeCache?.cached ? (
+                      <>
+                        <span className='text-xs px-2 py-1 rounded bg-green-500/15 text-green-600 dark:text-green-400 whitespace-nowrap'>
+                          已缓存 {formatBytes(episodeCache?.bytes || 0)}
+                        </span>
+                        <button
+                          onClick={() => handleCacheEpisode()}
+                          disabled={cacheBusy}
+                          className='text-xs px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 transition-colors whitespace-nowrap disabled:opacity-50'
+                        >
+                          {cacheBusy ? '更新中…' : '更新缓存'}
+                        </button>
+                        <button
+                          onClick={handleDeleteCache}
+                          disabled={cacheBusy}
+                          className='text-xs px-3 py-1.5 rounded bg-red-500 hover:bg-red-600 text-white transition-colors whitespace-nowrap disabled:opacity-50'
+                        >
+                          删除
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => handleCacheEpisode()}
+                        disabled={cacheBusy}
+                        className='text-xs px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white transition-colors whitespace-nowrap disabled:opacity-50'
+                      >
+                        {cacheBusy
+                          ? cacheProgress
+                            ? `缓存中 ${cacheProgress.cached}/${cacheProgress.total}`
+                            : '缓存中…'
+                          : '缓存本集'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </h1>
 
               {/* 关键信息行 */}

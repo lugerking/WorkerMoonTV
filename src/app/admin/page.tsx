@@ -62,6 +62,7 @@ interface SiteConfig {
   DoubanProxy: string;
   DisableYellowFilter: boolean;
   ImageCacheLimit: number;
+  VideoCacheLimitGB: number;
 }
 
 // 视频源数据类型
@@ -1307,6 +1308,7 @@ const SiteConfigComponent = ({ config }: { config: AdminConfig | null }) => {
     DoubanProxy: '',
     DisableYellowFilter: false,
     ImageCacheLimit: 500,
+    VideoCacheLimitGB: 5,
   });
   // 保存状态
   const [saving, setSaving] = useState(false);
@@ -1323,6 +1325,10 @@ const SiteConfigComponent = ({ config }: { config: AdminConfig | null }) => {
           typeof config.SiteConfig.ImageCacheLimit === 'number'
             ? config.SiteConfig.ImageCacheLimit
             : 500,
+        VideoCacheLimitGB:
+          typeof config.SiteConfig.VideoCacheLimitGB === 'number'
+            ? config.SiteConfig.VideoCacheLimitGB
+            : 5,
       });
     }
   }, [config]);
@@ -1545,7 +1551,39 @@ const SiteConfigComponent = ({ config }: { config: AdminConfig | null }) => {
         </p>
       </div>
 
+      {/* 视频缓存容量上限 */}
+      <div>
+        <label
+          className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'
+        >
+          视频缓存容量上限（GB）
+        </label>
+        <input
+          type='number'
+          min={0}
+          step={0.5}
+          value={siteSettings.VideoCacheLimitGB}
+          onChange={(e) =>
+            setSiteSettings((prev) => ({
+              ...prev,
+              VideoCacheLimitGB: Math.max(
+                0,
+                Number(e.target.value) || 0
+              ),
+            }))
+          }
+          className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100'
+        />
+        <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+          在播放页可逐集缓存视频到
+          R2，总占用超过该上限时按「最近访问」整集淘汰（每日 22:00
+          自动执行，也可在下方立即淘汰）。填 0 表示不限制。注意单集视频通常
+          200MB～1GB，请结合 R2 容量设置。
+        </p>
+      </div>
+
       <ImageCacheCleanup />
+      <VideoCacheCleanup />
 
       {/* 操作按钮 */}
       <div className='flex justify-end'>
@@ -1656,6 +1694,101 @@ const ImageCacheCleanup = () => {
             } text-white rounded-lg transition-colors`}
           >
             {cleaning ? '清理中…' : '立即清理'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 视频缓存：统计与按容量上限淘汰
+const VideoCacheCleanup = () => {
+  const [stats, setStats] = useState<{
+    episodes: number;
+    bytes: number;
+    limitGB: number;
+    available: boolean;
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [evicting, setEvicting] = useState(false);
+
+  const loadStats = async () => {
+    try {
+      setLoading(true);
+      const resp = await fetch('/api/admin/video-cache');
+      if (!resp.ok) throw new Error(`获取失败: ${resp.status}`);
+      setStats(await resp.json());
+    } catch (err) {
+      showError(err instanceof Error ? err.message : '获取视频缓存统计失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleEvict = async () => {
+    try {
+      setEvicting(true);
+      const resp = await fetch('/api/admin/video-cache', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'evict' }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || `淘汰失败: ${resp.status}`);
+      showSuccess(
+        `已淘汰 ${data.removedEpisodes || 0} 集，占用 ${(
+          (data.afterBytes || 0) /
+          1073741824
+        ).toFixed(2)} GB${data.incomplete ? '（未清理干净，可再次点击）' : ''}`
+      );
+      await loadStats();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : '淘汰失败');
+    } finally {
+      setEvicting(false);
+    }
+  };
+
+  const desc = !stats
+    ? '统计加载中…'
+    : !stats.available
+      ? '未绑定 R2 存储（VIDEO_CACHE），视频缓存未启用'
+      : `已缓存 ${stats.episodes} 集，占用 ${(stats.bytes / 1073741824).toFixed(2)} GB，上限 ${stats.limitGB} GB（0 表示不限制）`;
+
+  return (
+    <div className='border-t border-gray-200 dark:border-gray-700 pt-6'>
+      <div className='flex items-center justify-between gap-4'>
+        <div>
+          <h3 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+            视频缓存
+          </h3>
+          <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+            {desc}
+          </p>
+        </div>
+        <div className='flex gap-2 shrink-0'>
+          <button
+            onClick={loadStats}
+            disabled={loading}
+            className='px-3 py-2 text-sm bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 rounded-lg transition-colors'
+          >
+            {loading ? '刷新中…' : '刷新'}
+          </button>
+          <button
+            onClick={handleEvict}
+            disabled={evicting}
+            className={`px-3 py-2 text-sm ${
+              evicting
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-green-600 hover:bg-green-700'
+            } text-white rounded-lg transition-colors`}
+          >
+            {evicting ? '淘汰中…' : '按上限淘汰'}
           </button>
         </div>
       </div>

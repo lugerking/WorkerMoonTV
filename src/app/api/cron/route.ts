@@ -2,11 +2,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-import { DEFAULT_IMAGE_CACHE_LIMIT, getConfig } from '@/lib/config';
+import {
+  DEFAULT_IMAGE_CACHE_LIMIT,
+  DEFAULT_VIDEO_CACHE_LIMIT_GB,
+  getConfig,
+} from '@/lib/config';
 import { db } from '@/lib/db';
 import { fetchVideoDetail } from '@/lib/fetchVideoDetail';
 import { cleanupImageCache } from '@/lib/image-cache';
 import { SearchResult } from '@/lib/types';
+import { evictVideoCache } from '@/lib/video-cache';
 
 export const runtime = 'nodejs';
 
@@ -18,11 +23,13 @@ export async function GET(request: NextRequest) {
     refreshRecordAndFavorites();
     // 图片缓存清理需要保证执行完（Worker 可能在响应返回后终止未 await 的任务）
     const imageCache = await cleanupImageCacheTask();
+    const videoCache = await evictVideoCacheTask();
 
     return NextResponse.json({
       success: true,
       message: 'Cron job executed successfully',
       imageCache,
+      videoCache,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -37,6 +44,27 @@ export async function GET(request: NextRequest) {
       },
       { status: 500 }
     );
+  }
+}
+
+// 视频缓存淘汰：按管理界面配置的容量上限，淘汰最久未访问的整集
+async function evictVideoCacheTask() {
+  try {
+    const config = await getConfig();
+    const configured = Number(config?.SiteConfig?.VideoCacheLimitGB);
+    const limitGB = Number.isFinite(configured)
+      ? configured
+      : DEFAULT_VIDEO_CACHE_LIMIT_GB;
+    if (limitGB <= 0) {
+      console.log('[cron] 视频缓存未设置容量上限，跳过淘汰');
+      return { skipped: true };
+    }
+    const result = await evictVideoCache(limitGB * 1024 * 1024 * 1024);
+    console.log('[cron] 视频缓存淘汰结果:', JSON.stringify(result));
+    return result;
+  } catch (error) {
+    console.error('[cron] 视频缓存淘汰失败:', error);
+    return { error: (error as Error).message };
   }
 }
 

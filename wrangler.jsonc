@@ -39,6 +39,10 @@
     {
       "binding": "IMAGE_CACHE",
       "bucket_name": "moontv-image-cache"
+    },
+    {
+      "binding": "VIDEO_CACHE",
+      "bucket_name": "moontv-video-cache"
     }
   ],
   "vars": {

@@ -4,6 +4,8 @@
  * R2 图片缓存的公共操作：绑定获取、缓存键、列举、频率打分、清理、统计。
  */
 
+import { getLocalDiskBucket } from './r2-local';
+
 /** 频率评分的时间半衰期（小时）：越久未访问，历史频次衰减越多 */
 const SCORE_HALF_LIFE_HOURS = 24;
 /** 每轮删除的对象数：Worker 单次调用的子请求数有限，必须分批 */
@@ -48,7 +50,8 @@ export function getImageCacheBucket(): R2BucketLike | null {
   } catch {
     // ignore
   }
-  return null;
+  // 自托管（无 Cloudflare R2 绑定）：降级为本地磁盘缓存
+  return getLocalDiskBucket('image');
 }
 
 /** 后台任务：有 waitUntil 时延长生命周期，避免阻塞响应返回 */

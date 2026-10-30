@@ -38,6 +38,8 @@ export interface R2BucketLike {
   }>;
 }
 
+import { getLocalDiskBucket } from './r2-local';
+
 function getCloudflareContext(): any {
   try {
     return (globalThis as any)[Symbol.for('__cloudflare-context__')];
@@ -54,7 +56,8 @@ export function getVideoCacheBucket(): R2BucketLike | null {
   } catch {
     // ignore
   }
-  return null;
+  // 自托管（无 Cloudflare R2 绑定）：降级为本地磁盘缓存
+  return getLocalDiskBucket('video');
 }
 
 export function runInBackground(promise: Promise<unknown>) {

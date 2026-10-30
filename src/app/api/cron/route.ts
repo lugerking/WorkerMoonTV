@@ -8,6 +8,7 @@ import {
   getConfig,
 } from '@/lib/config';
 import { db } from '@/lib/db';
+import { refreshHomepageDoubanCache } from '@/lib/douban.server';
 import { fetchVideoDetail } from '@/lib/fetchVideoDetail';
 import { cleanupImageCache } from '@/lib/image-cache';
 import { SearchResult } from '@/lib/types';
@@ -24,12 +25,15 @@ export async function GET(request: NextRequest) {
     // 图片缓存清理需要保证执行完（Worker 可能在响应返回后终止未 await 的任务）
     const imageCache = await cleanupImageCacheTask();
     const videoCache = await evictVideoCacheTask();
+    // 豆瓣推荐数据每日预刷新：回源写 Redis 缓存，保证首页缓存总是热的
+    const doubanCache = await refreshDoubanCacheTask();
 
     return NextResponse.json({
       success: true,
       message: 'Cron job executed successfully',
       imageCache,
       videoCache,
+      doubanCache,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -64,6 +68,18 @@ async function evictVideoCacheTask() {
     return result;
   } catch (error) {
     console.error('[cron] 视频缓存淘汰失败:', error);
+    return { error: (error as Error).message };
+  }
+}
+
+// 豆瓣推荐数据预刷新：强制回源并写入 Redis/内存缓存（24h TTL）
+async function refreshDoubanCacheTask() {
+  try {
+    const result = await refreshHomepageDoubanCache();
+    console.log('[cron] 豆瓣推荐缓存刷新结果:', JSON.stringify(result));
+    return result;
+  } catch (error) {
+    console.error('[cron] 豆瓣推荐缓存刷新失败:', error);
     return { error: (error as Error).message };
   }
 }

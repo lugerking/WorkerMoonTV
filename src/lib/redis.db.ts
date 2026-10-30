@@ -401,7 +401,7 @@ export class RedisStorage implements IStorage {
 }
 
 // 单例 Redis 客户端
-function getRedisClient(): RedisClientType {
+export function getRedisClient(): RedisClientType {
   const globalKey = Symbol.for('__MOONTV_REDIS_CLIENT__');
   let client: RedisClientType | undefined = (global as any)[globalKey];
 

@@ -38,7 +38,11 @@ WorkerMoonTV/
 │   │   ├── upstash.db.ts     # Upstash 实现
 │   │   ├── db.client.ts      # localStorage 客户端实现
 │   │   ├── config.ts         # 配置体系
-│   │   └── runtime.ts        # 由 config.json 自动生成（勿手改）
+│   │   ├── runtime.ts        # 由 config.json 自动生成（勿手改）
+│   │   ├── douban.server.ts  # 豆瓣推荐数据缓存（Redis/内存，24h TTL）
+│   │   ├── r2-local.ts       # R2 兼容层：无 R2 绑定时降级为本地磁盘缓存
+│   │   ├── image-cache.ts    # 图片缓存（代理回源 + 落盘）
+│   │   └── video-cache.ts    # 视频缓存（m3u8 改写 + 落盘）
 │   ├── styles/
 │   └── middleware.ts         # 鉴权中间件（PASSWORD 保护）
 ├── public/                   # 静态资源（PWA 图标、manifest.json、sw.js 等）
@@ -266,6 +270,48 @@ npm run deploy
 
 ---
 
+## 私有服务器部署（Linux 自托管）
+
+除 Cloudflare Workers 外，本项目支持以 Node.js standalone 方式部署到自有服务器。线上实例架构（Ubuntu）：
+
+```
+浏览器 → Nginx(80) → Node standalone(127.0.0.1:3000, systemd 服务 moontv)
+                        ├── Redis      用户/配置/播放记录/豆瓣缓存
+                        └── /opt/moontv/cache   图片/视频磁盘缓存
+moontv-cron.timer（每日 04:30）→ GET /api/cron → 豆瓣缓存预刷新 + 磁盘缓存清理
+```
+
+部署概要（完整步骤见 [doc/07-部署与运维.md](doc/07-部署与运维.md) 第 9 节）：
+
+```bash
+# 1. 本机构建打包（standalone 自包含，无需在服务器装依赖）
+NEXT_PUBLIC_STORAGE_TYPE=redis NEXT_PUBLIC_ENABLE_REGISTER=true npm run build
+cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public
+tar -C .next/standalone -czf moontv.tar.gz .
+
+# 2. 服务器上替换应用（保留 cache 目录），systemd 拉起
+systemctl stop moontv
+find /opt/moontv -mindepth 1 -maxdepth 1 ! -name cache -exec rm -rf {} +
+tar -xzf moontv.tar.gz -C /opt/moontv && chown -R moontv:moontv /opt/moontv
+systemctl start moontv
+```
+
+关键环境变量（`/etc/moontv.env`，systemd `EnvironmentFile`）：`PASSWORD`、`USERNAME`、`REDIS_URL`、`NEXT_PUBLIC_STORAGE_TYPE=redis`、`NEXT_PUBLIC_ENABLE_REGISTER`。
+
+---
+
+## 自托管增强功能
+
+| 功能 | 说明 |
+| --- | --- |
+| 图片缓存 | 海报经 `/api/image-proxy` 同源代理：服务端带 Referer 回源豆瓣并落盘缓存，解决浏览器直连 `doubanio.com` 被跨域拦截的问题；响应头 `X-Image-Cache: MISS/HIT` |
+| 视频缓存 | m3u8 播放列表服务端改写并缓存分片（容量上限默认 5GB，管理后台可调）；响应头 `X-Video-Cache: MISS/HIT` |
+| 本地磁盘缓存层 | 无 Cloudflare R2 绑定时自动降级为本地磁盘实现 `r2-local.ts`（图片 500 张/视频 5GB 上限，cron 按访问频率淘汰）；`LOCAL_CACHE_DIR` 改缓存目录，`DISABLE_LOCAL_CACHE=true` 关闭；Cloudflare 部署方式不受影响 |
+| 豆瓣推荐缓存 | 分类数据 Redis 缓存 24h（`douban.server.ts`），首页高频读不回源豆瓣；每日 cron 强制预刷新首页 3 个区块；响应头 `X-Douban-Cache: redis/memory/fresh` 标注来源；Redis 故障自动降级进程内存，不影响可用性 |
+| PWA 修复 | `/sw.js` 加入鉴权白名单，Service Worker 可正常注册 |
+
+---
+
 ## 与上游 MoonTV 的差异
 
 1. **部署适配**：用 `@opennextjs/cloudflare` 取代 `@cloudflare/next-on-pages`，产物为 Workers（`main=.open-next/worker.js` + `assets` 绑定 `ASSETS`）。
@@ -273,6 +319,9 @@ npm run deploy
 3. **D1 绑定读取**：`src/lib/d1.db.ts` 通过 Cloudflare 上下文全局符号 `Symbol.for('__cloudflare-context__')` 获取绑定（`env.DB`），因为 OpenNext 只会把**字符串型**变量注入 `process.env`，对象型绑定不会出现在 `process.env`。
 4. **构建配置**：`tsconfig.json` 排除 `open-next.config.ts`（避免 Next 类型检查报 CJS/ESM 冲突）；`next.config.js` 开启 `eslint.ignoreDuringBuilds`（已移除 ESLint 配置）。
 5. **精简**：移除了 Docker、CI、测试、Lint、Prettier 等非运行必需文件与依赖。
+6. **本地磁盘缓存层**：新增 `src/lib/r2-local.ts`，实现 R2 `get/put/head/delete/list` 兼容接口；无 R2 绑定时图片/视频缓存自动降级为本地磁盘实现（含路径穿越防护、容量淘汰）。
+7. **豆瓣推荐缓存**：新增 `src/lib/douban.server.ts`，分类数据带 Redis 缓存（24h TTL + 内存降级），cron 每日预刷新首页区块，原版每次实时回源豆瓣。
+8. **鉴权白名单**：`src/middleware.ts` 跳过列表增加 `/sw.js`，修复自托管下 Service Worker 注册被 307 拦截的问题。
 
 ---
 

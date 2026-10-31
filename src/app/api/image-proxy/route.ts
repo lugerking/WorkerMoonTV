@@ -9,6 +9,26 @@ const MAX_CACHEABLE_SIZE = 5 * 1024 * 1024;
 // 超过该大小直接透传，不缓冲到内存
 const MAX_BUFFER_SIZE = 10 * 1024 * 1024;
 
+// 上游回源并发闸门：限制同时向上游图床（豆瓣等）发起的请求数，其余排队。
+// 目的：避免首页批量海报并发回源触发上游限流导致部分图片加载失败。
+const MAX_UPSTREAM_CONCURRENCY = 6;
+let upstreamActive = 0;
+const upstreamWaiters: Array<() => void> = [];
+
+async function withUpstreamSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (upstreamActive >= MAX_UPSTREAM_CONCURRENCY) {
+    await new Promise<void>((resolve) => upstreamWaiters.push(resolve));
+  }
+  upstreamActive++;
+  try {
+    return await fn();
+  } finally {
+    upstreamActive--;
+    const next = upstreamWaiters.shift();
+    if (next) next();
+  }
+}
+
 function buildHeaders(contentType: string): Headers {
   const headers = new Headers();
   headers.set('Content-Type', contentType);
@@ -141,14 +161,24 @@ export async function GET(request: Request) {
     ? 'https://movie.douban.com/'
     : `${target.origin}/`;
 
+  const upstreamHeaders = {
+    Referer: referer,
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    Accept: 'image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8',
+  };
+
   try {
-    const imageResponse = await fetch(target.toString(), {
-      headers: {
-        Referer: referer,
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        Accept: 'image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8',
-      },
+    // 并发闸门：首页一次渲染几十张海报时，若全部并发回源，会触发豆瓣限流
+    // （部分请求 429/失败 → 前端裂图）。限制同时回源数并将超出部分排队。
+    const imageResponse = await withUpstreamSlot(async () => {
+      let res = await fetch(target.toString(), { headers: upstreamHeaders });
+      // 限流/上游瞬时错误：短退避后重试一次
+      if (!res.ok && (res.status === 429 || res.status >= 500)) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        res = await fetch(target.toString(), { headers: upstreamHeaders });
+      }
+      return res;
     });
 
     if (!imageResponse.ok) {

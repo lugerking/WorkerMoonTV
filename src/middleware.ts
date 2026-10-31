@@ -4,6 +4,16 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
 
+// 反代（nginx/CDN）场景下 request.url 会退化为内部监听地址（如 http://localhost:3000），
+// 重定向必须以网关透传的 x-forwarded-host / x-forwarded-proto 为准，否则未登录用户
+// 会被重定向到无法访问的内部地址
+function getExternalOrigin(request: NextRequest): string {
+  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host');
+  if (!host) return request.url;
+  const proto = request.headers.get('x-forwarded-proto') ?? 'http';
+  return `${proto}://${host}`;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -16,7 +26,7 @@ export async function middleware(request: NextRequest) {
 
   if (!process.env.PASSWORD) {
     // 如果没有设置密码，重定向到警告页面
-    const warningUrl = new URL('/warning', request.url);
+    const warningUrl = new URL('/warning', getExternalOrigin(request));
     return NextResponse.redirect(warningUrl);
   }
 
@@ -108,7 +118,7 @@ function handleAuthFailure(
   }
 
   // 否则重定向到登录页面
-  const loginUrl = new URL('/login', request.url);
+  const loginUrl = new URL('/login', getExternalOrigin(request));
   // 保留完整的URL，包括查询参数
   const fullUrl = `${pathname}${request.nextUrl.search}`;
   loginUrl.searchParams.set('redirect', fullUrl);

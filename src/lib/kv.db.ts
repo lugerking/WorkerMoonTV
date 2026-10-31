@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-console */
 
 import { AdminConfig } from './admin.types';
+import { getRedisClient } from './redis.db';
 
 /**
  * 管理员配置的 Cloudflare Workers KV 存储。
@@ -49,14 +50,50 @@ interface KVNamespace {
  * OpenNext 只会把「字符串型」环境变量注入 `process.env`，对象型绑定（KV / D1）
  * 需要通过 Cloudflare 上下文的全局符号读取；构建期或非 Workers 环境下返回
  * null（此时回退为环境变量/config.json 的默认配置）。
+ *
+ * 自托管（Node + Redis）部署时没有 Cloudflare 上下文，此处回退到 Redis 实现的
+ * 等价 KV 语义（get/put/delete），保证管理配置在私有服务器上真正持久化——
+ * 否则 `setSiteConfig` 会静默跳过，配置只活在进程内存里，重启即丢。
  */
+let redisKVSingleton: KVNamespace | null | undefined;
+
+function getRedisKV(): KVNamespace | null {
+  if (redisKVSingleton !== undefined) return redisKVSingleton;
+  redisKVSingleton = null;
+  try {
+    const client = getRedisClient();
+    if (client) {
+      redisKVSingleton = {
+        async get(key: string) {
+          return await client.get(key);
+        },
+        async put(key: string, value: string) {
+          await client.set(key, value);
+        },
+        async delete(key: string) {
+          await client.del(key);
+        },
+      } as KVNamespace;
+    }
+  } catch (err) {
+    console.error('初始化 Redis KV 适配器失败:', err);
+    redisKVSingleton = null;
+  }
+  return redisKVSingleton;
+}
+
 function getKV(): KVNamespace | null {
   try {
     const ctx = (globalThis as any)[Symbol.for('__cloudflare-context__')];
-    return (ctx?.env?.[KV_BINDING] as KVNamespace) ?? null;
+    const cfKV = (ctx?.env?.[KV_BINDING] as KVNamespace) ?? null;
+    if (cfKV) return cfKV;
   } catch {
-    return null;
+    // 非 Workers 环境，继续尝试 Redis 回退
   }
+  if ((process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage') === 'redis') {
+    return getRedisKV();
+  }
+  return null;
 }
 
 /** 读取并解析某个分片；不存在或解析失败时返回 null。 */

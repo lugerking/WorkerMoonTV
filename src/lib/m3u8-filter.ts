@@ -14,7 +14,15 @@
  *    → 分块时长法：按 DISCONTINUITY 分块，分片 ≤15 且总时长 <60s 的块判定为广告。
  *      为防误杀（正片本身极短的视频），若所有块都满足广告特征则放弃过滤。
  *
- * 两种方法都远低于误杀阈值，宁可漏放也不误删正片。
+ * 3. 「序号跳变」式（如 lz 资源 lzi）：正片段文件名序号连续递增
+ *    （…000073.ts → [广告 198255~198261.ts] → 000074.ts …），且该源每 10 段
+ *    就有一个自然 DISCONTINUITY（编码器分块），块时长规律完全失效。
+ *    → 序列法：提取分片文件名末尾数字，找出最长近似连续链（步长 0~2），
+ *      链外分片判定为广告。防误杀护栏：数字后缀占比 ≥90%、最长链 ≥60%
+ *      且 ≥30 段、链外总数 ≤10%（如量子资源的正片前段是另一条长链，
+ *      链外占比 23% → 该方法自动禁用，由目录法处理）。
+ *
+ * 三种方法都远低于误杀阈值，宁可漏放也不误删正片。
  */
 
 /** 广告块的最大分片数 */
@@ -128,6 +136,38 @@ export function filterM3u8Ads(m3u8: string): string {
       }
     }
   }
+
+  // ---------- 方法 3：文件名数字序列离群检测 ----------
+  // 正片分片序号在一个连续数值池内；广告序号来自另一个池，远离正片值域。
+  // 用「中位数 ± MAD」做离群判定（对广告插在正片中间、把序号链切成多段的
+  // 情形免疫——只看值域分布，不看文件顺序）。哈希文件名源的尾部数字无意义，
+  // 要求几乎全部分片带数字后缀才启用。
+  const nums: number[] = [];
+  for (let k = 0; k < segIdx.length; k++) {
+    const m = /(\d+)\.(?:ts|m4s|mp4)$/i.exec(lines[segIdx[k]].trim());
+    if (m) nums.push(parseInt(m[1], 10));
+  }
+  if (nums.length >= segIdx.length * 0.9 && nums.length >= 30) {
+    const sorted = [...nums].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const devs = sorted
+      .map((n) => Math.abs(n - median))
+      .sort((a, b) => a - b);
+    const mad = devs[Math.floor(devs.length / 2)];
+    // 阈值：MAD 的 1000 倍，且至少 10000（防 MAD=0 的退化情形）
+    const threshold = Math.max(mad * 1000, 10000);
+    const outlierIdx: number[] = [];
+    for (let k = 0; k < nums.length; k++) {
+      if (Math.abs(nums[k] - median) > threshold) outlierIdx.push(k);
+    }
+    // 护栏：离群分片必须明显是少数派（≤10%）才判定为广告
+    if (outlierIdx.length > 0 && outlierIdx.length <= segIdx.length * 0.1) {
+      for (let k = 0; k < outlierIdx.length; k++) {
+        adSegIdx.add(segIdx[outlierIdx[k]]);
+      }
+    }
+  }
+
   if (adSegIdx.size === 0) return m3u8;
 
   // ---------- 重建：删广告分片行 + 紧邻其前的 #EXTINF 等伴随行 + 空洞化 DISCONTINUITY ----------

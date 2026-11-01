@@ -22,7 +22,14 @@
  *      且 ≥30 段、链外总数 ≤10%（如量子资源的正片前段是另一条长链，
  *      链外占比 23% → 该方法自动禁用，由目录法处理）。
  *
- * 三种方法都远低于误杀阈值，宁可漏放也不误删正片。
+ * 4. 「均匀分块短游程」式（如电影天堂 dyttzy）：单目录 + 全哈希文件名，
+ *    上述方法全部失效；但该源以固定段数（众数，实测每 5 段）切
+ *    DISCONTINUITY 块（占 80%），插广告表现为连续若干个「小于众数块」的
+ *    游程且总段数恰为众数的整数倍（实测 4:58 处广告 = [3段,2段] 游程
+ *    共 19s，各集时长指纹逐段一致）。被挤短的正片块与片头/片尾不完整块
+ *    不会命中。护栏：众数 ≥4 段、占 ≥60% 的块、命中总时长 ≤15%。
+ *
+ * 四种方法都远低于误杀阈值，宁可漏放也不误删正片。
  */
 
 /** 广告块的最大分片数 */
@@ -188,6 +195,86 @@ export function filterM3u8Ads(m3u8: string): string {
       for (let k = 0; k < outlierIdx.length; k++) {
         adSegIdx.add(segIdx[outlierIdx[k]]);
       }
+    }
+  }
+
+  // ---------- 方法 4：均匀分块源的短块游程检测 ----------
+  // 某些源（如电影天堂 dyttzy）以固定段数切 DISCONTINUITY 块（实测每 5 段一块，
+  // 占 80%），文件名全哈希、单目录，方法 1/2/3 均无信号。其插广告表现为：
+  // 连续若干个「小于众数块」的块组成游程，且游程总段数恰为众数的整数倍
+  // （广告替换了整数个自然块；实测 4:58 处广告为 [3段,2段] 游程共 19s，
+  // 各集时长指纹逐段一致）。被广告挤短的 4 段正片块与片头/片尾的不完整块
+  // （游程和 ≠ 众数倍数）不会命中。
+  // 护栏：众数块必须占绝对优势（≥60% 的块）且众数 ≥4 段；命中游程总时长
+  // ≤ 全片 15%。
+  const blockSizeCount = new Map<number, number>();
+  let modeSize = 0;
+  let modeCnt = 0;
+  let totalBlockDur = 0;
+  for (let bi = 0; bi < blocks.length; bi++) {
+    totalBlockDur += blocks[bi].dur;
+    const n = blocks[bi].indices.length;
+    if (n === 0) continue;
+    const c = (blockSizeCount.get(n) ?? 0) + 1;
+    blockSizeCount.set(n, c);
+    if (c > modeCnt) {
+      modeCnt = c;
+      modeSize = n;
+    }
+  }
+  if (modeSize >= 4 && modeCnt >= blocks.length * 0.6) {
+    const runIdx: number[] = [];
+    let runDur = 0;
+    let bi = 0;
+    while (bi < blocks.length) {
+      const n = blocks[bi].indices.length;
+      if (n === 0 || n >= modeSize) {
+        bi++;
+        continue;
+      }
+      // 游程：连续的小于众数块大小的块
+      let bj = bi;
+      while (
+        bj + 1 < blocks.length &&
+        blocks[bj + 1].indices.length < modeSize
+      ) {
+        bj++;
+      }
+      const isEdge = bi === 0 || bj === blocks.length - 1;
+      if (isEdge) {
+        bi = bj + 1;
+        continue;
+      }
+      // 在游程内找「和为众数整数倍」的连续子游程：广告替换了整数个自然块
+      // （实测 [3段,2段]）。游程里被广告挤短的正片块（如单独的 4 段块）其
+      // 子游程和不是众数的倍数，不会命中。
+      let i = bi;
+      while (i <= bj) {
+        let sum = 0;
+        let matched = -1;
+        for (let k = i; k <= bj; k++) {
+          sum += blocks[k].indices.length;
+          if (sum > 0 && sum % modeSize === 0) {
+            matched = k;
+            break;
+          }
+        }
+        if (matched >= 0) {
+          for (let k = i; k <= matched; k++) {
+            runDur += blocks[k].dur;
+            for (let x = 0; x < blocks[k].indices.length; x++) {
+              runIdx.push(blocks[k].indices[x]);
+            }
+          }
+          i = matched + 1;
+        } else {
+          i++;
+        }
+      }
+      bi = bj + 1;
+    }
+    if (runIdx.length > 0 && runDur <= totalBlockDur * 0.15) {
+      for (let k = 0; k < runIdx.length; k++) adSegIdx.add(runIdx[k]);
     }
   }
 

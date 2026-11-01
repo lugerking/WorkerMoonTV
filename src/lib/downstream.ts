@@ -1,4 +1,5 @@
 import { API_CONFIG, ApiSite, getConfig } from '@/lib/config';
+import { getRedisClient } from './redis.db';
 import { SearchResult } from '@/lib/types';
 import { cleanHtmlTags } from '@/lib/utils';
 
@@ -274,6 +275,83 @@ export async function getDetailFromApi(
     type_name: videoDetail.type_name,
     douban_id: videoDetail.vod_douban_id,
   };
+}
+
+/* ---------------- /share/ 防盗链包装解析 ---------------- */
+
+/**
+ * 部分资源站（lz/ok 系列）详情接口返回 `/share/<hash>` 包装页而非真实 m3u8，
+ * 页面为一段携带真实播放地址的 HTML/JS（`url = "/20220320/…/index.m3u8"`），
+ * 播放器无法直接消费（hls.js 会以 MEDIA_ERR_SRC_NOT_SUPPORTED 失败）。
+ *
+ * 此处在服务端解析出真实地址后替换，结果写入 Redis 长期缓存；
+ * 解析失败时原样返回，不影响详情流程。
+ */
+export async function resolveShareUrl(url: string): Promise<string> {
+  if (!url || !url.includes('/share/')) return url;
+
+  const cacheKey = `share_url:${url}`;
+  try {
+    const client = getRedisClient();
+    const cached = await client.get(cacheKey);
+    if (cached) return cached;
+  } catch {
+    // Redis 不可用时跳过缓存，直接解析
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        Referer: `${new URL(url).origin}/`,
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) return url;
+    const html = await res.text();
+
+    let real: string | null = null;
+    // 1) 包装页的 url = "..." 赋值（优先）
+    let m = /url\s*=\s*["']([^"']+\.m3u8[^"']*)["']/i.exec(html);
+    if (m) real = m[1];
+    // 2) 页面中任意完整 m3u8 URL
+    if (!real) {
+      m = /https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*/i.exec(html);
+      if (m) real = m[0];
+    }
+    // 3) 站内绝对路径（如 /20220320/1048_xxx/index.m3u8）
+    if (!real) {
+      m = /\/[0-9]{8}\/[^\s"'<>]*\.m3u8/i.exec(html);
+      if (m) {
+        try {
+          real = new URL(m[0], url).toString();
+        } catch {
+          real = null;
+        }
+      }
+    }
+    if (!real) return url;
+    if (!/^https?:\/\//i.test(real)) {
+      try {
+        real = new URL(real, url).toString();
+      } catch {
+        return url;
+      }
+    }
+
+    try {
+      await getRedisClient().set(cacheKey, real);
+    } catch {
+      // 缓存失败不影响返回
+    }
+    return real;
+  } catch {
+    return url;
+  }
 }
 
 async function handleSpecialSourceDetail(

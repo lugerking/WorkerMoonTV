@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getAvailableApiSites, getCacheTime } from '@/lib/config';
-import { getDetailFromApi } from '@/lib/downstream';
+import { getDetailFromApi, resolveShareUrl } from '@/lib/downstream';
 
 export const runtime = 'nodejs';
 
@@ -27,6 +27,12 @@ export async function GET(request: Request) {
     }
 
     const result = await getDetailFromApi(apiSite, id);
+    // 解析 /share/ 防盗链包装地址为真实 m3u8（如 lz 系列资源站）
+    if (result.episodes?.length) {
+      result.episodes = await Promise.all(
+        result.episodes.map((ep) => resolveShareUrl(ep))
+      );
+    }
     const cacheTime = await getCacheTime();
 
     return NextResponse.json(result, {

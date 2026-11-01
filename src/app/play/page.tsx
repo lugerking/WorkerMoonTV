@@ -451,6 +451,38 @@ function PlayPageClient() {
     return filterM3u8Ads(m3u8Content);
   }
 
+  // 计算与服务端 episodeHash 一致的集哈希（sha256 hex）
+  async function computeEpHash(url: string): Promise<string> {
+    try {
+      const buf = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(url)
+      );
+      return Array.from(new Uint8Array(buf))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * 原生 HLS（Safari / iOS / 夸克等 WebKit 内核）不经过 hls.js 的自定义 loader，
+   * 客户端广告过滤失效。开启「去广告」时改走服务端 video-cache 代理：
+   * 由服务端过滤广告分片，并把分片改写为绝对代理地址（顺带解决 WebKit 按相对路径
+   * 解析 /api/ 的问题）。带 ep 参数的请求每次实时回源过滤，不受旧缓存影响。
+   */
+  async function buildNativeProxyUrl(url: string): Promise<string> {
+    try {
+      const ep = await computeEpHash(url);
+      return `/api/video-cache?u=${encodeURIComponent(
+        encodeBase64Url(url)
+      )}${ep ? `&ep=${ep}` : ''}`;
+    } catch {
+      return url;
+    }
+  }
+
   // 跳过片头片尾配置相关函数
   const handleSkipConfigChange = async (newConfig: {
     enable: boolean;
@@ -598,7 +630,7 @@ function PlayPageClient() {
     ): Promise<SearchResult[]> => {
       try {
         const detailResponse = await fetch(
-          `/api/detail?source=${source}&id=${id}`
+          `/api/detail?source=${source}&id=${id}&r=share2`
         );
         if (!detailResponse.ok) {
           throw new Error('获取视频详情失败');
@@ -1377,7 +1409,14 @@ function PlayPageClient() {
             // 避免 hls.js 的 WebWorker/MSE 在部分 webview 中失效导致无法播放。
             // 此前正是靠注入原生 <source> 才让夸克能播，现改为显式原生播放更稳健。
             if (video.canPlayType('application/vnd.apple.mpegurl')) {
-              video.src = url;
+              // 原生 HLS 路径无法用 hls.js loader 过滤，开启去广告时走服务端代理
+              if (blockAdEnabledRef.current) {
+                buildNativeProxyUrl(url).then((proxied) => {
+                  video.src = proxied || url;
+                });
+              } else {
+                video.src = url;
+              }
               return;
             }
 

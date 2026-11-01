@@ -60,6 +60,7 @@ function dirFingerprint(url: string): string {
 export function filterM3u8Ads(m3u8: string): string {
   if (!m3u8) return m3u8;
   if (m3u8.includes('#EXT-X-STREAM-INF')) return m3u8; // master 列表不处理
+  if (!m3u8.includes('#EXTINF')) return m3u8; // 非媒体播放列表（如反爬 HTML 页）不处理
 
   const lines = m3u8.split(/\r?\n/);
 
@@ -80,7 +81,13 @@ export function filterM3u8Ads(m3u8: string): string {
     if (c > majority) majority = c;
   }
   const adDirs = new Set<string>();
-  if (majority >= MAJORITY_MIN_SEGMENTS && dirCount.size > 1) {
+  // 多数派必须占绝对优势（≥50%）：真实广告目录永远是极少数派；
+  // 多目录均分的播放列表（各目录都是编码分块）不可靠，放弃目录过滤。
+  if (
+    majority >= MAJORITY_MIN_SEGMENTS &&
+    majority >= segIdx.length * 0.5 &&
+    dirCount.size > 1
+  ) {
     dirCount.forEach((count, fp) => {
       if (count < majority && count <= AD_DIR_MAX_SEGMENTS) adDirs.add(fp);
     });
@@ -117,14 +124,30 @@ export function filterM3u8Ads(m3u8: string): string {
   // 仅当存在明确的正片块、且广告块不占绝对多数时才启用块过滤，防误杀短视频
   const adSegIdx = new Set<number>();
   if (contentBlocks.length > 0 && contentBlocks.length < blocks.length) {
+    // 比例护栏：候选广告块的总时长占比过高（>15%）说明该源天然以短块切片
+    // （如电影天堂/最大资源整集都是 ~20s 的编码分块），「短块=广告」假设不成立，
+    // 宁可漏放也不误删正片。真实插广告（如 mdzy 每 ~5 分钟插 17s）占比 ≤12%。
+    let adDur = 0;
+    let totalDur = 0;
     for (let bi = 0; bi < blocks.length; bi++) {
-      const b = blocks[bi];
+      totalDur += blocks[bi].dur;
       if (
-        b.indices.length > 0 &&
-        b.indices.length <= AD_BLOCK_MAX_SEGMENTS &&
-        b.dur < AD_BLOCK_MAX_DURATION
+        blocks[bi].indices.length <= AD_BLOCK_MAX_SEGMENTS &&
+        blocks[bi].dur < AD_BLOCK_MAX_DURATION
       ) {
-        for (let k = 0; k < b.indices.length; k++) adSegIdx.add(b.indices[k]);
+        adDur += blocks[bi].dur;
+      }
+    }
+    if (adDur <= totalDur * 0.15) {
+      for (let bi = 0; bi < blocks.length; bi++) {
+        const b = blocks[bi];
+        if (
+          b.indices.length > 0 &&
+          b.indices.length <= AD_BLOCK_MAX_SEGMENTS &&
+          b.dur < AD_BLOCK_MAX_DURATION
+        ) {
+          for (let k = 0; k < b.indices.length; k++) adSegIdx.add(b.indices[k]);
+        }
       }
     }
   }

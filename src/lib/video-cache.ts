@@ -39,6 +39,7 @@ export interface R2BucketLike {
 }
 
 import { getLocalDiskBucket } from './r2-local';
+import { filterM3u8Ads } from './m3u8-filter';
 
 function getCloudflareContext(): any {
   try {
@@ -181,6 +182,13 @@ export function rewritePlaylist(
   playlistUrl: string,
   epHash: string
 ): RewriteResult {
+  // 先过滤广告分片（独立目录式 / DISCONTINUITY 短块式），再改写地址。
+  // 失败不影响原流程：过滤函数内部保证幂等与原样返回。
+  try {
+    text = filterM3u8Ads(text);
+  } catch {
+    // 过滤异常时保留原列表
+  }
   const refs: string[] = [];
   const lines = text.split(/\r?\n/);
   const out = lines.map((line) => {

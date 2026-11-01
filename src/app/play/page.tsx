@@ -4,6 +4,7 @@
 
 import Artplayer from 'artplayer';
 import Hls from 'hls.js';
+import { filterM3u8Ads } from '@/lib/m3u8-filter';
 import { Heart } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
@@ -441,28 +442,13 @@ function PlayPageClient() {
   };
 
   /**
-   * 去广告：过滤 m3u8 播放列表中的 `#EXT-X-DISCONTINUITY` 标记。
-   *
-   * 部分资源站会在正片切片之间插入带该标记的广告段，移除后播放器即可跳过广告。
-   * 属于启发式方案，仅在开启「去广告」开关（blockAdEnabled）时对 m3u8 生效。
+   * 去广告：过滤 m3u8 播放列表中的广告分片（独立目录式 + DISCONTINUITY 短块式）。
+   * 具体启发式见 src/lib/m3u8-filter.ts（与服务端 video-cache 共用）。
+   * 仅在开启「去广告」开关（blockAdEnabled）时对 m3u8 生效。
    */
   function filterAdsFromM3U8(m3u8Content: string): string {
     if (!m3u8Content) return '';
-
-    // 按行分割M3U8内容
-    const lines = m3u8Content.split('\n');
-    const filteredLines = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-
-      // 只过滤#EXT-X-DISCONTINUITY标识
-      if (!line.includes('#EXT-X-DISCONTINUITY')) {
-        filteredLines.push(line);
-      }
-    }
-
-    return filteredLines.join('\n');
+    return filterM3u8Ads(m3u8Content);
   }
 
   // 跳过片头片尾配置相关函数

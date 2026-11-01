@@ -475,9 +475,11 @@ function PlayPageClient() {
   async function buildNativeProxyUrl(url: string): Promise<string> {
     try {
       const ep = await computeEpHash(url);
+      // v=过滤算法版本：早前版本的响应带 max-age=31536000，已被浏览器长期缓存；
+      // 变更 URL 才能让这些设备绕过旧列表拿到新算法的过滤结果。
       return `/api/video-cache?u=${encodeURIComponent(
         encodeBase64Url(url)
-      )}${ep ? `&ep=${ep}` : ''}`;
+      )}${ep ? `&ep=${ep}` : ''}&v=2`;
     } catch {
       return url;
     }

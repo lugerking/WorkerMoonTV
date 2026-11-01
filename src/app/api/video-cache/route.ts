@@ -107,9 +107,17 @@ export async function GET(request: Request) {
           },
         });
       }
+      const headers = corsHeaders('application/vnd.apple.mpegurl');
+      // 带 ep 参数的请求承诺「每次实时回源过滤」，必须禁止 HTTP 缓存：否则播放器
+      // 会把旧算法改写的列表按 max-age=31536000 钉在本地，过滤算法升级后永远
+      // 不再更新（实测导致部署新算法后广告仍出现）。顶级列表内容随缓存桶更新，
+      // 可长期缓存；分片内容不可变，也可长期缓存。
+      if (!isTopLevel) {
+        headers.set('Cache-Control', 'no-store');
+      }
       return new Response(text, {
         status: 200,
-        headers: corsHeaders('application/vnd.apple.mpegurl'),
+        headers,
       });
     } catch {
       return NextResponse.json({ error: 'Error fetching playlist' }, { status: 500 });

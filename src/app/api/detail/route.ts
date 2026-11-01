@@ -27,11 +27,17 @@ export async function GET(request: Request) {
     }
 
     const result = await getDetailFromApi(apiSite, id);
-    // 解析 /share/ 防盗链包装地址为真实 m3u8（如 lz 系列资源站）
+    // 解析 /share/ 防盗链包装地址为真实 m3u8（如 lz/dytt 系列资源站）。
+    // 长剧可能有 200+ 集，分批并发解析，避免瞬时打满上游。
     if (result.episodes?.length) {
-      result.episodes = await Promise.all(
-        result.episodes.map((ep) => resolveShareUrl(ep))
-      );
+      const resolved: string[] = [];
+      const BATCH = 10;
+      for (let i = 0; i < result.episodes.length; i += BATCH) {
+        const chunk = result.episodes.slice(i, i + BATCH);
+        const done = await Promise.all(chunk.map((ep) => resolveShareUrl(ep)));
+        resolved.push(...done);
+      }
+      result.episodes = resolved;
     }
     const cacheTime = await getCacheTime();
 

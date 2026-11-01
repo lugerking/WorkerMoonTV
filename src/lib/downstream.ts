@@ -203,7 +203,14 @@ export async function getDetailFromApi(
   id: string
 ): Promise<SearchResult> {
   if (apiSite.detail) {
-    return handleSpecialSourceDetail(id, apiSite);
+    try {
+      const special = await handleSpecialSourceDetail(id, apiSite);
+      // 部分资源站的详情页已失效或改用 /share/ 防盗链包装，HTML 解析提取不到
+      // 播放地址时回退到标准 videolist 接口（其中的 /share/ 地址由上层解析）
+      if (special.episodes?.length) return special;
+    } catch {
+      // 详情页请求失败时回退到标准接口
+    }
   }
 
   const detailUrl = `${apiSite.api}${API_CONFIG.detail.path}${id}`;

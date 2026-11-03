@@ -262,6 +262,36 @@ Vercel-CDN-Cache-Control: public, s-maxage=<t>
 
 ## 7. 其他
 
+### GET `/api/video-cache`
+
+视频缓存代理，供播放器直接拉取（原生 HLS 路径 / 已缓存分片）。
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `u` | string | 是 | 目标地址（base64url 编码），仅允许 http/https |
+| `ep` | string | 否 | 所属集哈希（SHA-256）。**带 `ep`：每次实时回源并做广告过滤，响应 `Cache-Control: no-store`**（过滤算法升级即时生效）；不带：读顶级缓存（命中直接返回，未命中回源改写后落盘长期缓存） |
+| `v` | string | 否 | 客户端缓存破坏参数（过滤算法版本，见 `play/page.tsx` 的 `buildNativeProxyUrl()`），仅参与浏览器缓存键，服务端忽略 |
+
+行为：
+
+- **播放列表**（URL 含 `.m3u8`）：经 `lib/m3u8-filter.ts` 四算法过滤后返回，分片地址改写为 `/api/video-cache?u=...&ep=...` 代理地址。
+- **分片**：命中分片缓存直接返回；未命中原样流式回源透传（不落盘），单对象上限 64MB。
+- 响应均带 `Access-Control-Allow-Origin: *`。
+
+### GET/POST `/api/admin/video-cache`
+
+视频缓存管理（owner/admin）。
+
+- `GET`：无 `u` 时返回统计 `{ ...stats, limitGB, episodes }`；带 `u`（base64url）时返回该集状态。均 `no-store`。
+- `POST` 按 `action`：
+
+| action | 参数 | 说明 |
+| --- | --- | --- |
+| `cache` | `url, title?, offset?` | 预缓存整集分片；按返回的 `nextOffset` 循环调用直到 `done` |
+| `delete` | `url` | 删除某集缓存 |
+| `deleteBatch` | `urls` | 批量删除 |
+| `evict` | - | 按容量上限淘汰最久未访问的整集 |
+
 ### GET `/api/image-proxy`
 
 | 参数 | 类型 | 必填 | 说明 |

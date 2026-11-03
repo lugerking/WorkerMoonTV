@@ -5,7 +5,7 @@
 import Artplayer from 'artplayer';
 import Hls from 'hls.js';
 import { filterM3u8Ads } from '@/lib/m3u8-filter';
-import { Heart } from 'lucide-react';
+import { Clapperboard, Heart, RotateCcw, Search } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
 
@@ -1721,75 +1721,59 @@ function PlayPageClient() {
       <PageLayout activePath='/play'>
         <div className='flex items-center justify-center min-h-screen bg-transparent'>
           <div className='text-center max-w-md mx-auto px-6'>
-            {/* 动画影院图标 */}
+            {/* 影院图标 */}
             <div className='relative mb-8'>
-              <div className='relative mx-auto w-24 h-24 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300'>
-                <div className='text-white text-4xl'>
-                  {loadingStage === 'searching' && '🔍'}
-                  {loadingStage === 'preferring' && '⚡'}
-                  {loadingStage === 'fetching' && '🎬'}
-                  {loadingStage === 'ready' && '✨'}
-                </div>
-                {/* 旋转光环 */}
-                <div className='absolute -inset-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl opacity-20 animate-spin'></div>
-              </div>
-
-              {/* 浮动粒子效果 */}
-              <div className='absolute top-0 left-0 w-full h-full pointer-events-none'>
-                <div className='absolute top-2 left-2 w-2 h-2 bg-green-400 rounded-full animate-bounce'></div>
-                <div
-                  className='absolute top-4 right-4 w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce'
-                  style={{ animationDelay: '0.5s' }}
-                ></div>
-                <div
-                  className='absolute bottom-3 left-6 w-1 h-1 bg-lime-400 rounded-full animate-bounce'
-                  style={{ animationDelay: '1s' }}
-                ></div>
+              <div className='mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 ring-1 ring-emerald-500/20'>
+                <Clapperboard
+                  className='h-9 w-9 text-emerald-500 animate-pulse'
+                  strokeWidth={1.5}
+                />
               </div>
             </div>
 
             {/* 进度指示器 */}
-            <div className='mb-6 w-80 mx-auto'>
-              <div className='flex justify-center space-x-2 mb-4'>
-                <div
-                  className={`w-3 h-3 rounded-full transition-all duration-500 ${
-                    loadingStage === 'searching' || loadingStage === 'fetching'
-                      ? 'bg-green-500 scale-125'
-                      : loadingStage === 'preferring' ||
-                        loadingStage === 'ready'
-                      ? 'bg-green-500'
-                      : 'bg-gray-300'
-                  }`}
-                ></div>
-                <div
-                  className={`w-3 h-3 rounded-full transition-all duration-500 ${
+            <div className='mb-6 w-72 sm:w-80 mx-auto'>
+              <div className='mb-3 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400'>
+                <span
+                  className={
+                    loadingStage === 'searching'
+                      ? 'font-medium text-emerald-600 dark:text-emerald-400'
+                      : ''
+                  }
+                >
+                  搜索片源
+                </span>
+                <span
+                  className={
                     loadingStage === 'preferring'
-                      ? 'bg-green-500 scale-125'
-                      : loadingStage === 'ready'
-                      ? 'bg-green-500'
-                      : 'bg-gray-300'
-                  }`}
-                ></div>
-                <div
-                  className={`w-3 h-3 rounded-full transition-all duration-500 ${
-                    loadingStage === 'ready'
-                      ? 'bg-green-500 scale-125'
-                      : 'bg-gray-300'
-                  }`}
-                ></div>
+                      ? 'font-medium text-emerald-600 dark:text-emerald-400'
+                      : ''
+                  }
+                >
+                  优选测速
+                </span>
+                <span
+                  className={
+                    loadingStage === 'fetching' || loadingStage === 'ready'
+                      ? 'font-medium text-emerald-600 dark:text-emerald-400'
+                      : ''
+                  }
+                >
+                  获取播放地址
+                </span>
               </div>
-
               {/* 进度条 */}
-              <div className='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden'>
+              <div className='w-full h-1.5 overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/10'>
                 <div
-                  className='h-full bg-gradient-to-r from-green-500 to-emerald-600 rounded-full transition-all duration-1000 ease-out'
+                  className='h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-1000 ease-out'
                   style={{
                     width:
-                      loadingStage === 'searching' ||
-                      loadingStage === 'fetching'
-                        ? '33%'
+                      loadingStage === 'searching'
+                        ? '20%'
+                        : loadingStage === 'fetching'
+                        ? '70%'
                         : loadingStage === 'preferring'
-                        ? '66%'
+                        ? '45%'
                         : '100%',
                   }}
                 ></div>
@@ -1798,7 +1782,7 @@ function PlayPageClient() {
 
             {/* 加载消息 */}
             <div className='space-y-2'>
-              <p className='text-xl font-semibold text-gray-800 dark:text-gray-200 animate-pulse'>
+              <p className='text-base font-medium text-gray-600 dark:text-gray-300'>
                 {loadingMessage}
               </p>
             </div>
@@ -1814,24 +1798,12 @@ function PlayPageClient() {
         <div className='flex items-center justify-center min-h-screen bg-transparent'>
           <div className='text-center max-w-md mx-auto px-6'>
             {/* 错误图标 */}
-            <div className='relative mb-8'>
-              <div className='relative mx-auto w-24 h-24 bg-gradient-to-r from-red-500 to-orange-500 rounded-2xl shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300'>
-                <div className='text-white text-4xl'>😵</div>
-                {/* 脉冲效果 */}
-                <div className='absolute -inset-2 bg-gradient-to-r from-red-500 to-orange-500 rounded-2xl opacity-20 animate-pulse'></div>
-              </div>
-
-              {/* 浮动错误粒子 */}
-              <div className='absolute top-0 left-0 w-full h-full pointer-events-none'>
-                <div className='absolute top-2 left-2 w-2 h-2 bg-red-400 rounded-full animate-bounce'></div>
-                <div
-                  className='absolute top-4 right-4 w-1.5 h-1.5 bg-orange-400 rounded-full animate-bounce'
-                  style={{ animationDelay: '0.5s' }}
-                ></div>
-                <div
-                  className='absolute bottom-3 left-6 w-1 h-1 bg-yellow-400 rounded-full animate-bounce'
-                  style={{ animationDelay: '1s' }}
-                ></div>
+            <div className='mb-8'>
+              <div className='mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-red-500/15 to-red-500/5 ring-1 ring-red-500/20'>
+                <RotateCcw
+                  className='h-9 w-9 text-red-500'
+                  strokeWidth={1.5}
+                />
               </div>
             </div>
 
@@ -1858,16 +1830,18 @@ function PlayPageClient() {
                     ? router.push(`/search?q=${encodeURIComponent(videoTitle)}`)
                     : router.back()
                 }
-                className='w-full px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-medium hover:from-green-600 hover:to-emerald-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl'
+                className='w-full px-6 py-3 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-medium hover:from-emerald-600 hover:to-emerald-700 transition-all duration-200 shadow-lg shadow-emerald-500/25'
               >
-                {videoTitle ? '🔍 返回搜索' : '← 返回上页'}
+                <Search className='h-4 w-4' />
+                {videoTitle ? '返回搜索' : '返回上页'}
               </button>
 
               <button
                 onClick={() => window.location.reload()}
-                className='w-full px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200'
+                className='w-full px-6 py-3 inline-flex items-center justify-center gap-2 bg-black/[0.05] dark:bg-white/10 text-gray-700 dark:text-gray-200 rounded-xl font-medium hover:bg-black/10 dark:hover:bg-white/15 transition-colors duration-200'
               >
-                🔄 重新尝试
+                <RotateCcw className='h-4 w-4' />
+                重新尝试
               </button>
             </div>
           </div>
@@ -1881,11 +1855,13 @@ function PlayPageClient() {
       <div className='flex flex-col gap-3 py-4 px-5 lg:px-[3rem] 2xl:px-20'>
         {/* 第一行：影片标题 */}
         <div className='py-1'>
-          <h1 className='text-xl font-semibold text-gray-900 dark:text-gray-100'>
-            {videoTitle || '影片标题'}
+          <h1 className='flex flex-wrap items-center gap-2 text-xl font-semibold text-gray-900 dark:text-gray-100'>
+            <span className='truncate max-w-full'>
+              {videoTitle || '影片标题'}
+            </span>
             {totalEpisodes > 1 && (
-              <span className='text-gray-500 dark:text-gray-400'>
-                {` > 第 ${currentEpisodeIndex + 1} 集`}
+              <span className='flex-shrink-0 rounded-md bg-emerald-500/10 px-2 py-0.5 text-sm font-medium text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400'>
+                {`第 ${currentEpisodeIndex + 1} / ${totalEpisodes} 集`}
               </span>
             )}
           </h1>
@@ -1927,7 +1903,7 @@ function PlayPageClient() {
                 className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full transition-all duration-200 ${
                   isEpisodeSelectorCollapsed
                     ? 'bg-orange-400 animate-pulse'
-                    : 'bg-green-400'
+                    : 'bg-emerald-400'
                 }`}
               ></div>
             </button>
@@ -1942,48 +1918,34 @@ function PlayPageClient() {
           >
             {/* 播放器 */}
             <div
-              className={`h-full transition-all duration-300 ease-in-out rounded-xl border border-white/0 dark:border-white/30 ${
+              className={`h-full transition-all duration-300 ease-in-out ${
                 isEpisodeSelectorCollapsed ? 'col-span-1' : 'md:col-span-3'
               }`}
             >
               <div className='relative w-full h-[300px] lg:h-full'>
                 <div
                   ref={artRef}
-                  className='bg-black w-full h-full rounded-xl overflow-hidden shadow-lg'
+                  className='bg-black w-full h-full rounded-2xl overflow-hidden shadow-2xl ring-1 ring-black/10 dark:ring-white/10'
                 ></div>
 
                 {/* 换源加载蒙层 */}
                 {isVideoLoading && (
-                  <div className='absolute inset-0 bg-black/85 backdrop-blur-sm rounded-xl flex items-center justify-center z-[500] transition-all duration-300'>
+                  <div className='absolute inset-0 bg-black/85 backdrop-blur-sm rounded-2xl flex items-center justify-center z-[500] transition-all duration-300'>
                     <div className='text-center max-w-md mx-auto px-6'>
-                      {/* 动画影院图标 */}
-                      <div className='relative mb-8'>
-                        <div className='relative mx-auto w-24 h-24 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300'>
-                          <div className='text-white text-4xl'>🎬</div>
-                          {/* 旋转光环 */}
-                          <div className='absolute -inset-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl opacity-20 animate-spin'></div>
-                        </div>
-
-                        {/* 浮动粒子效果 */}
-                        <div className='absolute top-0 left-0 w-full h-full pointer-events-none'>
-                          <div className='absolute top-2 left-2 w-2 h-2 bg-green-400 rounded-full animate-bounce'></div>
-                          <div
-                            className='absolute top-4 right-4 w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce'
-                            style={{ animationDelay: '0.5s' }}
-                          ></div>
-                          <div
-                            className='absolute bottom-3 left-6 w-1 h-1 bg-lime-400 rounded-full animate-bounce'
-                            style={{ animationDelay: '1s' }}
-                          ></div>
-                        </div>
+                      <div className='relative mx-auto mb-6 flex h-16 w-16 items-center justify-center'>
+                        <Clapperboard
+                          className='h-8 w-8 text-white/90'
+                          strokeWidth={1.5}
+                        />
+                        <div className='absolute inset-0 rounded-full border-2 border-white/10 border-t-emerald-400 animate-spin'></div>
                       </div>
 
                       {/* 换源消息 */}
                       <div className='space-y-2'>
-                        <p className='text-xl font-semibold text-white animate-pulse'>
+                        <p className='text-base font-medium text-white/90'>
                           {videoLoadingStage === 'sourceChanging'
-                            ? '🔄 切换播放源...'
-                            : '🔄 视频加载中...'}
+                            ? '切换播放源...'
+                            : '视频加载中...'}
                         </p>
                       </div>
                     </div>
@@ -2040,7 +2002,7 @@ function PlayPageClient() {
                   <div className='ml-4 flex items-center gap-2 flex-shrink-0'>
                     {episodeCache?.cached ? (
                       <>
-                        <span className='text-xs px-2 py-1 rounded bg-green-500/15 text-green-600 dark:text-green-400 whitespace-nowrap'>
+                        <span className='text-xs px-2 py-1 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 whitespace-nowrap'>
                           已缓存 {formatBytes(episodeCache?.bytes || 0)}
                         </span>
                         <button
@@ -2078,7 +2040,7 @@ function PlayPageClient() {
               {/* 关键信息行 */}
               <div className='flex flex-wrap items-center gap-3 text-base mb-4 opacity-80 flex-shrink-0'>
                 {detail?.class && (
-                  <span className='text-green-600 font-semibold'>
+                  <span className='text-emerald-600 font-semibold dark:text-emerald-400'>
                     {detail.class}
                   </span>
                 )}
@@ -2107,7 +2069,7 @@ function PlayPageClient() {
           {/* 封面展示 */}
           <div className='hidden md:block md:col-span-1 md:order-first'>
             <div className='pl-0 py-4 pr-6'>
-              <div className='bg-gray-300 dark:bg-gray-700 aspect-[2/3] flex items-center justify-center rounded-xl overflow-hidden'>
+              <div className='aspect-[2/3] flex items-center justify-center rounded-2xl overflow-hidden ring-1 ring-black/10 dark:ring-white/10 bg-gray-200 dark:bg-zinc-800/60'>
                 {videoCover ? (
                   <img
                     src={processImageUrl(videoCover, videoTitle)}
@@ -2115,7 +2077,7 @@ function PlayPageClient() {
                     className='w-full h-full object-cover'
                   />
                 ) : (
-                  <span className='text-gray-600 dark:text-gray-400'>
+                  <span className='text-gray-500 dark:text-gray-400'>
                     封面图片
                   </span>
                 )}

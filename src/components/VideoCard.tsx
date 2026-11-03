@@ -269,7 +269,7 @@ export default function VideoCard({
 
   return (
     <div
-      className='group relative w-full cursor-pointer transition-all duration-300 ease-out hover:z-[500]'
+      className='group relative w-full cursor-pointer transition-all duration-300 ease-out hover:z-[500] hover:-translate-y-1'
       onClick={handleClick}
     >
       {/* 海报容器 */}

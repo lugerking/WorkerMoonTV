@@ -366,7 +366,7 @@ export default function VideoCard({
       )}
 
       {/* 标题与来源 */}
-      <div className='mt-2 text-center'>
+      <div className='mt-2 text-left'>
         <div className='relative'>
           <span className='block truncate text-sm font-semibold text-gray-900 transition-colors duration-300 ease-in-out group-hover:text-emerald-600 dark:text-gray-100 dark:group-hover:text-emerald-400 peer'>
             {actualTitle}
@@ -377,12 +377,18 @@ export default function VideoCard({
             <div className='absolute left-1/2 top-full w-0 h-0 -translate-x-1/2 border-l-4 border-r-4 border-t-4 border-transparent border-t-zinc-900'></div>
           </div>
         </div>
-        {config.showSourceName && source_name && (
-          <span className='block text-xs text-gray-500 dark:text-gray-400 mt-1'>
-            <span className='inline-block border rounded px-2 py-0.5 border-gray-500/60 dark:border-gray-400/60 transition-all duration-300 ease-in-out group-hover:border-emerald-500/60 group-hover:text-emerald-600 dark:group-hover:text-emerald-300'>
-              {source_name}
-            </span>
-          </span>
+        {(actualYear || (config.showSourceName && source_name)) && (
+          <div className='mt-1 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400'>
+            {actualYear && <span>{actualYear}</span>}
+            {actualYear && config.showSourceName && source_name && (
+              <span className='text-gray-300 dark:text-gray-600'>·</span>
+            )}
+            {config.showSourceName && source_name && (
+              <span className='truncate transition-colors duration-300 ease-in-out group-hover:text-emerald-600 dark:group-hover:text-emerald-300'>
+                {source_name}
+              </span>
+            )}
+          </div>
         )}
       </div>
     </div>

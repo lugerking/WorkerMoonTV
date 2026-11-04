@@ -155,9 +155,12 @@ function LoginPageClient() {
         <ThemeToggle />
       </div>
       <div className='relative z-10 w-full max-w-md rounded-3xl border border-black/5 bg-white/80 p-10 shadow-elevated backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-900/60'>
-        <h1 className='brand-mark mb-8 text-center text-3xl font-extrabold tracking-tight'>
+        <h1 className='brand-mark mb-2 text-center text-4xl font-extrabold tracking-tight'>
           {siteName}
         </h1>
+        <p className='mb-8 text-center text-sm text-gray-500 dark:text-gray-400'>
+          登录后同步你的观影进度与收藏
+        </p>
         <form onSubmit={handleSubmit} className='space-y-8'>
           {shouldAskUsername && (
             <div>
@@ -168,7 +171,7 @@ function LoginPageClient() {
                 id='username'
                 type='text'
                 autoComplete='username'
-                className='block w-full rounded-lg border-0 py-3 px-4 text-gray-900 dark:text-gray-100 shadow-sm ring-1 ring-white/60 dark:ring-white/20 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-green-500 focus:outline-none sm:text-base bg-white/60 dark:bg-zinc-800/60 backdrop-blur'
+                className='block w-full rounded-lg border-0 py-3 px-4 text-gray-900 dark:text-gray-100 shadow-sm ring-1 ring-white/60 dark:ring-white/20 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-emerald-500 focus:outline-none sm:text-base bg-white/60 dark:bg-zinc-800/60 backdrop-blur'
                 placeholder='输入用户名'
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -184,7 +187,7 @@ function LoginPageClient() {
               id='password'
               type='password'
               autoComplete='current-password'
-              className='block w-full rounded-lg border-0 py-3 px-4 text-gray-900 dark:text-gray-100 shadow-sm ring-1 ring-white/60 dark:ring-white/20 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-green-500 focus:outline-none sm:text-base bg-white/60 dark:bg-zinc-800/60 backdrop-blur'
+              className='block w-full rounded-lg border-0 py-3 px-4 text-gray-900 dark:text-gray-100 shadow-sm ring-1 ring-white/60 dark:ring-white/20 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-emerald-500 focus:outline-none sm:text-base bg-white/60 dark:bg-zinc-800/60 backdrop-blur'
               placeholder='输入访问密码'
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -222,7 +225,7 @@ function LoginPageClient() {
               disabled={
                 !password || loading || (shouldAskUsername && !username)
               }
-              className='inline-flex w-full justify-center rounded-lg bg-green-600 py-3 text-base font-semibold text-white shadow-lg transition-all duration-200 hover:from-green-600 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-50'
+              className='btn-accent w-full'
             >
               {loading ? '登录中...' : '登录'}
             </button>

@@ -172,7 +172,7 @@ function HomeClient() {
         <div className='mx-auto w-full max-w-7xl'>
           {activeTab === 'favorites' ? (
             // 收藏夹视图
-            <section className='mb-8'>
+            <section className='mb-8 enter-fade'>
               <div className='mb-4 flex items-center justify-between'>
                 <h2 className='section-title'>
                   我的收藏
@@ -214,7 +214,7 @@ function HomeClient() {
               <ContinueWatching />
 
               {/* 热门电影 */}
-              <section className='mb-8'>
+              <section className='mb-8 enter-fade' style={{ animationDelay: '0ms' }}>
                 <div className='mb-4 flex items-center justify-between'>
                   <h2 className='section-title'>
                     热门电影
@@ -235,7 +235,7 @@ function HomeClient() {
                           key={index}
                           className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
                         >
-                          <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'>
+                          <div className='relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-gray-200 animate-pulse dark:bg-gray-800'>
                             <div className='absolute inset-0 bg-gray-300 dark:bg-gray-700'></div>
                           </div>
                           <div className='mt-2 h-4 bg-gray-200 rounded animate-pulse dark:bg-gray-800'></div>
@@ -262,7 +262,7 @@ function HomeClient() {
               </section>
 
               {/* 热门剧集 */}
-              <section className='mb-8'>
+              <section className='mb-8 enter-fade' style={{ animationDelay: '80ms' }}>
                 <div className='mb-4 flex items-center justify-between'>
                   <h2 className='section-title'>
                     热门剧集
@@ -283,7 +283,7 @@ function HomeClient() {
                           key={index}
                           className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
                         >
-                          <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'>
+                          <div className='relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-gray-200 animate-pulse dark:bg-gray-800'>
                             <div className='absolute inset-0 bg-gray-300 dark:bg-gray-700'></div>
                           </div>
                           <div className='mt-2 h-4 bg-gray-200 rounded animate-pulse dark:bg-gray-800'></div>
@@ -309,7 +309,7 @@ function HomeClient() {
               </section>
 
               {/* 热门综艺 */}
-              <section className='mb-8'>
+              <section className='mb-8 enter-fade' style={{ animationDelay: '160ms' }}>
                 <div className='mb-4 flex items-center justify-between'>
                   <h2 className='section-title'>
                     热门综艺
@@ -330,7 +330,7 @@ function HomeClient() {
                           key={index}
                           className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
                         >
-                          <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'>
+                          <div className='relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-gray-200 animate-pulse dark:bg-gray-800'>
                             <div className='absolute inset-0 bg-gray-300 dark:bg-gray-700'></div>
                           </div>
                           <div className='mt-2 h-4 bg-gray-200 rounded animate-pulse dark:bg-gray-800'></div>
@@ -376,7 +376,7 @@ function HomeClient() {
               ></button>
             </div>
             <div className='mb-6'>
-              <div className='relative overflow-hidden rounded-lg mb-4 bg-green-50 dark:bg-green-900/20'>
+              <div className='relative overflow-hidden rounded-lg mb-4 bg-emerald-50 dark:bg-emerald-900/20'>
                 <div className='absolute inset-y-0 left-0 w-1.5 rounded-l-lg bg-emerald-500 dark:bg-emerald-400'></div>
                 <p className='ml-4 text-gray-600 dark:text-gray-300 leading-relaxed'>
                   {announcement}

@@ -2,6 +2,7 @@
 
 import { createClient, RedisClientType } from 'redis';
 
+import { safeStrEqual } from './auth';
 import {
   Favorite,
   IStorage,
@@ -76,6 +77,21 @@ export class RedisStorage implements IStorage {
     this.client = getRedisClient();
   }
 
+  /**
+   * SCAN 游标遍历代替 KEYS：KEYS 是 O(N) 阻塞命令，会卡住整个 Redis，
+   * 热路径（每次读播放记录/收藏）使用会随 key 规模增长拖慢所有请求。
+   */
+  private async scanKeys(pattern: string): Promise<string[]> {
+    const keys: string[] = [];
+    for await (const key of this.client.scanIterator({
+      MATCH: pattern,
+      COUNT: 200,
+    })) {
+      keys.push(key);
+    }
+    return keys;
+  }
+
   // ---------- 播放记录 ----------
   private prKey(user: string, key: string) {
     return `u:${user}:pr:${key}`; // u:username:pr:source+id
@@ -105,7 +121,7 @@ export class RedisStorage implements IStorage {
     userName: string
   ): Promise<Record<string, PlayRecord>> {
     const pattern = `u:${userName}:pr:*`;
-    const keys: string[] = await withRetry(() => this.client.keys(pattern));
+    const keys: string[] = await withRetry(() => this.scanKeys(pattern));
     if (keys.length === 0) return {};
     const values = await withRetry(() => this.client.mGet(keys));
     const result: Record<string, PlayRecord> = {};
@@ -149,7 +165,7 @@ export class RedisStorage implements IStorage {
 
   async getAllFavorites(userName: string): Promise<Record<string, Favorite>> {
     const pattern = `u:${userName}:fav:*`;
-    const keys: string[] = await withRetry(() => this.client.keys(pattern));
+    const keys: string[] = await withRetry(() => this.scanKeys(pattern));
     if (keys.length === 0) return {};
     const values = await withRetry(() => this.client.mGet(keys));
     const result: Record<string, Favorite> = {};
@@ -183,8 +199,8 @@ export class RedisStorage implements IStorage {
       this.client.get(this.userPwdKey(userName))
     );
     if (stored === null) return false;
-    // 确保比较时都是字符串类型
-    return ensureString(stored) === password;
+    // 恒时比较，避免时序侧信道
+    return safeStrEqual(ensureString(stored), password);
   }
 
   // 检查用户是否存在
@@ -219,7 +235,7 @@ export class RedisStorage implements IStorage {
     // 删除播放记录
     const playRecordPattern = `u:${userName}:pr:*`;
     const playRecordKeys = await withRetry(() =>
-      this.client.keys(playRecordPattern)
+      this.scanKeys(playRecordPattern)
     );
     if (playRecordKeys.length > 0) {
       await withRetry(() => this.client.del(playRecordKeys));
@@ -227,9 +243,7 @@ export class RedisStorage implements IStorage {
 
     // 删除收藏夹
     const favoritePattern = `u:${userName}:fav:*`;
-    const favoriteKeys = await withRetry(() =>
-      this.client.keys(favoritePattern)
-    );
+    const favoriteKeys = await withRetry(() => this.scanKeys(favoritePattern));
     if (favoriteKeys.length > 0) {
       await withRetry(() => this.client.del(favoriteKeys));
     }
@@ -237,7 +251,7 @@ export class RedisStorage implements IStorage {
     // 删除跳过片头片尾配置
     const skipConfigPattern = `u:${userName}:skip:*`;
     const skipConfigKeys = await withRetry(() =>
-      this.client.keys(skipConfigPattern)
+      this.scanKeys(skipConfigPattern)
     );
     if (skipConfigKeys.length > 0) {
       await withRetry(() => this.client.del(skipConfigKeys));
@@ -287,7 +301,7 @@ export class RedisStorage implements IStorage {
 
   // ---------- 获取全部用户（含角色与封禁状态） ----------
   async getAllUsers(): Promise<UserInfo[]> {
-    const keys = await withRetry(() => this.client.keys('u:*:pwd'));
+    const keys = await withRetry(() => this.scanKeys('u:*:pwd'));
     const userNames = keys
       .map((k) => {
         const match = k.match(/^u:(.+?):pwd$/);
@@ -373,7 +387,7 @@ export class RedisStorage implements IStorage {
     userName: string
   ): Promise<{ [key: string]: SkipConfig }> {
     const pattern = `u:${userName}:skip:*`;
-    const keys = await withRetry(() => this.client.keys(pattern));
+    const keys = await withRetry(() => this.scanKeys(pattern));
 
     if (keys.length === 0) {
       return {};

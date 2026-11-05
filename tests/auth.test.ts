@@ -4,6 +4,8 @@ import { createHmac } from 'crypto';
 import {
   generateSignature,
   getAuthInfoFromCookie,
+  isValidUsername,
+  safeStrEqual,
 } from '@/lib/auth';
 
 /** 构造带 auth Cookie 的伪 NextRequest */
@@ -66,5 +68,48 @@ describe('getAuthInfoFromCookie（服务端 Cookie 解析）', () => {
 
   it('Cookie 内容非法（非 JSON）时返回 null 而不是抛错', () => {
     expect(getAuthInfoFromCookie(fakeRequest('%%%not-json'))).toBeNull();
+  });
+});
+
+describe('safeStrEqual（恒时比较）', () => {
+  it('相同字符串返回 true', async () => {
+    expect(await safeStrEqual('password123', 'password123')).toBe(true);
+    expect(await safeStrEqual('', '')).toBe(true);
+    expect(await safeStrEqual('中文用户名', '中文用户名')).toBe(true);
+  });
+
+  it('不同字符串返回 false', async () => {
+    expect(await safeStrEqual('password123', 'password124')).toBe(false);
+    expect(await safeStrEqual('a', 'b')).toBe(false);
+  });
+
+  it('不同长度字符串返回 false（不抛错）', async () => {
+    expect(await safeStrEqual('short', 'a-much-longer-string')).toBe(false);
+  });
+});
+
+describe('isValidUsername（用户名白名单）', () => {
+  it.each([
+    'lugerking',
+    'user_01',
+    '小王',
+    'a.b-c',
+    'Movie2024',
+  ])('合法用户名: %s', (name) => {
+    expect(isValidUsername(name)).toBe(true);
+  });
+
+  it.each([
+    'a*', // glob 通配符会破坏 Redis key 匹配
+    'a?',
+    'a[0]',
+    'a\\b',
+    'a:b', // 冒号干扰 u:<user>:<field> 键结构
+    'a b', // 空格
+    'a;b',
+    '',
+    'a'.repeat(65), // 超长
+  ])('非法用户名: %j', (name) => {
+    expect(isValidUsername(name)).toBe(false);
   });
 });

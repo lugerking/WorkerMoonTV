@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-import { getAuthInfoFromCookie } from '@/lib/auth';
+import { getAuthInfoFromCookie, safeStrEqual } from '@/lib/auth';
 
 // 反代（nginx/CDN）场景下 request.url 会退化为内部监听地址（如 http://localhost:3000），
 // 重定向必须以网关透传的 x-forwarded-host / x-forwarded-proto 为准，否则未登录用户
@@ -39,7 +39,11 @@ export async function middleware(request: NextRequest) {
 
   // localstorage模式：在middleware中完成验证
   if (storageType === 'localstorage') {
-    if (!authInfo.password || authInfo.password !== process.env.PASSWORD) {
+    if (
+      !authInfo.password ||
+      typeof authInfo.password !== 'string' ||
+      !(await safeStrEqual(authInfo.password, process.env.PASSWORD || ''))
+    ) {
       return handleAuthFailure(request, pathname);
     }
     return NextResponse.next();

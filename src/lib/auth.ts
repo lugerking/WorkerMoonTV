@@ -95,3 +95,33 @@ export async function generateSignature(
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 }
+
+/**
+ * 恒时字符串比较（用于密码/密钥校验，避免时序侧信道）。
+ * 先把两侧都 SHA-256 到固定 32 字节再逐字节异或比较，
+ * 既消除长度信息泄漏，也兼容 Node 与 Workers（不依赖平台专有的
+ * crypto.subtle.timingSafeEqual / node:crypto）。
+ */
+export async function safeStrEqual(a: string, b: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const [da, db] = await Promise.all([
+    crypto.subtle.digest('SHA-256', encoder.encode(a)),
+    crypto.subtle.digest('SHA-256', encoder.encode(b)),
+  ]);
+  const va = new Uint8Array(da);
+  const vb = new Uint8Array(db);
+  let diff = 0;
+  for (let i = 0; i < va.length; i++) {
+    diff |= va[i] ^ vb[i];
+  }
+  return diff === 0;
+}
+
+/**
+ * 用户名白名单校验：字母/数字/下划线/中文/点/连字符，长度 1-64。
+ * 禁止 `* ? [ ] \\ :` 等字符——这些字符进入 Redis key 后会破坏
+ * `u:<user>:pr:*` 这类 glob 模式匹配，导致跨用户数据串读/误删。
+ */
+export function isValidUsername(username: string): boolean {
+  return /^[\w\u4e00-\u9fa5.-]{1,64}$/.test(username);
+}

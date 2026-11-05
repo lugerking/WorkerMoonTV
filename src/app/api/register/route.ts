@@ -1,7 +1,7 @@
 /* eslint-disable no-console,@typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 
-import { generateSignature } from '@/lib/auth';
+import { generateSignature, isValidUsername } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 
@@ -55,6 +55,15 @@ export async function POST(req: NextRequest) {
     }
     if (!password || typeof password !== 'string') {
       return NextResponse.json({ error: '密码不能为空' }, { status: 400 });
+    }
+
+    // 用户名白名单：防止 `* ? [ ] :` 等字符破坏 Redis key 的 glob
+    // 模式匹配（`u:<user>:pr:*`），避免跨用户数据串读/误删
+    if (!isValidUsername(username)) {
+      return NextResponse.json(
+        { error: '用户名仅支持中英文、数字、下划线、点和连字符，长度 1-64' },
+        { status: 400 }
+      );
     }
 
     // 检查是否和管理员重复

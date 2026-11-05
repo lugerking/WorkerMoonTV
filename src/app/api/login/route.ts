@@ -1,7 +1,7 @@
 /* eslint-disable no-console,@typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 
-import { generateSignature } from '@/lib/auth';
+import { generateSignature, safeStrEqual } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { findUser } from '@/lib/users';
 
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: '密码不能为空' }, { status: 400 });
       }
 
-      if (password !== envPassword) {
+      if (!(await safeStrEqual(password, envPassword))) {
         return NextResponse.json(
           { ok: false, error: '密码错误' },
           { status: 401 }
@@ -107,11 +107,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '密码不能为空' }, { status: 400 });
     }
 
-    // 可能是站长，直接读环境变量
-    if (
-      username === process.env.USERNAME &&
-      password === process.env.PASSWORD
-    ) {
+    // 可能是站长，直接读环境变量（恒时比较，避免时序侧信道）
+    const isOwner =
+      typeof username === 'string' &&
+      typeof password === 'string' &&
+      (await safeStrEqual(username, process.env.USERNAME || '')) &&
+      (await safeStrEqual(password, process.env.PASSWORD || ''));
+    if (isOwner) {
       // 验证成功，设置认证cookie
       const response = NextResponse.json({ ok: true });
       const cookieValue = await generateAuthCookie(
@@ -132,7 +134,7 @@ export async function POST(req: NextRequest) {
       });
 
       return response;
-    } else if (username === process.env.USERNAME) {
+    } else if (await safeStrEqual(username, process.env.USERNAME || '')) {
       return NextResponse.json({ error: '用户名或密码错误' }, { status: 401 });
     }
 

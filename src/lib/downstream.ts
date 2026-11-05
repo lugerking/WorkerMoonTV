@@ -351,7 +351,8 @@ export async function resolveShareUrl(url: string): Promise<string> {
     }
 
     try {
-      await getRedisClient().set(cacheKey, real);
+      // 30 天过期：避免解析结果永久堆积；失效后自然重新回源解析
+      await getRedisClient().set(cacheKey, real, { EX: 30 * 24 * 3600 });
     } catch {
       // 缓存失败不影响返回
     }

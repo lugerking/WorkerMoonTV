@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-import { getAuthInfoFromCookie } from '@/lib/auth';
+import { getAuthInfoFromCookie, isValidUsername } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 import { setSiteConfig } from '@/lib/kv.db';
@@ -135,6 +135,12 @@ export async function POST(request: NextRequest) {
         if (!targetPassword) {
           return NextResponse.json(
             { error: '缺少目标用户密码' },
+            { status: 400 }
+          );
+        }
+        if (!isValidUsername(targetUsername!)) {
+          return NextResponse.json(
+            { error: '用户名仅支持中英文、数字、下划线、点和连字符，长度 1-64' },
             { status: 400 }
           );
         }

@@ -7,6 +7,7 @@ import {
   DEFAULT_VIDEO_CACHE_LIMIT_GB,
   getConfig,
 } from '@/lib/config';
+import { safeStrEqual } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { refreshHomepageDoubanCache } from '@/lib/douban.server';
 import { fetchVideoDetail } from '@/lib/fetchVideoDetail';
@@ -17,11 +18,28 @@ import { evictVideoCache } from '@/lib/video-cache';
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
+  // 可选的触发密钥：配置 CRON_SECRET 后，请求需带 ?key=<secret> 或
+  // x-cron-secret 头。未配置时保持兼容（免鉴权），避免破坏既有调度器。
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const url = new URL(request.url);
+    const provided =
+      request.headers.get('x-cron-secret') || url.searchParams.get('key');
+    const ok = provided
+      ? await safeStrEqual(provided, cronSecret)
+      : false;
+    if (!ok) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  }
+
   console.log(request.url);
   try {
     console.log('Cron job triggered:', new Date().toISOString());
 
-    refreshRecordAndFavorites();
+    // await 保证任务在响应返回前完成：cron 调度方（systemd timer / Workers
+    // waitUntil）依赖响应判断本次触发是否真正执行完，避免任务被截断
+    await refreshRecordAndFavorites();
     // 图片缓存清理需要保证执行完（Worker 可能在响应返回后终止未 await 的任务）
     const imageCache = await cleanupImageCacheTask();
     const videoCache = await evictVideoCacheTask();

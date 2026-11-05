@@ -54,13 +54,22 @@ function isBlockedHost(hostname: string): boolean {
   // IPv4 字面量
   const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
   if (ipv4) {
-    const octets = ipv4.slice(1).map(Number);
-    if (octets.some((n) => n > 255)) return false; // 非法地址交给 fetch 失败处理
-    const [a, b] = octets;
+    const octets = ipv4.slice(1);
+    // 含前导零的段可能被解析器按八进制解释（如 0177.0.0.1 → 127.0.0.1），直接拒绝
+    if (octets.some((s) => s.length > 1 && s.startsWith('0'))) return true;
+    const octetNums = octets.map(Number);
+    if (octetNums.some((n) => n > 255)) return false; // 非法地址交给 fetch 失败处理
+    const [a, b] = octetNums;
     if (a === 0 || a === 10 || a === 127) return true;
     if (a === 169 && b === 254) return true; // 链路本地 / 云元数据
     if (a === 172 && b >= 16 && b <= 31) return true; // 私有网段
     if (a === 192 && b === 168) return true;
+  }
+
+  // 非点分十进制的整数 IP 变体（十进制 2130706433 / 十六进制 0x7f000001），
+  // 正常图床不会以这种形式出现，直接拒绝以封堵 127.0.0.1 等价写法
+  if (/^\d{8,}$/.test(h) || /^0x[0-9a-f]+$/i.test(h)) {
+    return true;
   }
 
   // IPv6 回环/唯一本地/链路本地
@@ -172,14 +181,53 @@ export async function GET(request: Request) {
     // 并发闸门：首页一次渲染几十张海报时，若全部并发回源，会触发豆瓣限流
     // （部分请求 429/失败 → 前端裂图）。限制同时回源数并将超出部分排队。
     const imageResponse = await withUpstreamSlot(async () => {
-      let res = await fetch(target.toString(), { headers: upstreamHeaders });
-      // 限流/上游瞬时错误：短退避后重试一次
-      if (!res.ok && (res.status === 429 || res.status >= 500)) {
-        await new Promise((resolve) => setTimeout(resolve, 400));
-        res = await fetch(target.toString(), { headers: upstreamHeaders });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      try {
+        let res = await fetch(target.toString(), {
+          headers: upstreamHeaders,
+          signal: controller.signal,
+        });
+        // 限流/上游瞬时错误：短退避后重试一次
+        if (!res.ok && (res.status === 429 || res.status >= 500)) {
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          res = await fetch(target.toString(), {
+            headers: upstreamHeaders,
+            signal: controller.signal,
+          });
+        }
+        // 豆瓣图床对数据中心 IP 常返回 403/429：改走公共镜像 weserv 回源兜底，
+        // 避免机房 IP 被封导致整批海报裂图。镜像结果同样会写入磁盘缓存。
+        if (
+          !res.ok &&
+          (res.status === 403 || res.status === 429 || res.status >= 500) &&
+          host.includes('douban')
+        ) {
+          try {
+            const mirror = await fetch(
+              `https://images.weserv.pl/?url=${encodeURIComponent(target.toString())}`,
+              { headers: upstreamHeaders, signal: controller.signal }
+            );
+            if (mirror.ok) res = mirror;
+          } catch {
+            // 镜像失败时沿用上游结果
+          }
+        }
+        return res;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }).then((res) => {
+      // 上游 302 跳转后的最终地址仍需校验，防止借重定向绕过内网封禁
+      if (res && res.ok && res.url && isBlockedHost(new URL(res.url).hostname)) {
+        return null;
       }
       return res;
     });
+
+    if (!imageResponse) {
+      return NextResponse.json({ error: 'Blocked host' }, { status: 403 });
+    }
 
     if (!imageResponse.ok) {
       return NextResponse.json(

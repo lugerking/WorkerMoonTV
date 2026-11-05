@@ -17,11 +17,36 @@ const VERSION_CHECK_URLS = [
   'https://raw.githubusercontent.com/senshinya/MoonTV/main/VERSION.txt',
 ];
 
+// 版本检查失败后的冷却时间：24 小时内不再重复发起外网请求
+const CHECK_FAILURE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const CHECK_FAILURE_KEY = 'moontv-version-check-failed-at';
+
+function isFailureCoolingDown(): boolean {
+  try {
+    const last = Number(sessionStorage.getItem(CHECK_FAILURE_KEY) || '0');
+    return last > 0 && Date.now() - last < CHECK_FAILURE_COOLDOWN_MS;
+  } catch {
+    return false;
+  }
+}
+
+function markFailure(): void {
+  try {
+    sessionStorage.setItem(CHECK_FAILURE_KEY, String(Date.now()));
+  } catch {
+    // 存储不可用时忽略，下次仍会尝试请求
+  }
+}
+
 /**
  * 检查是否有新版本可用
  * @returns Promise<UpdateStatus> - 返回版本检查状态
  */
 export async function checkForUpdates(): Promise<UpdateStatus> {
+  // 上游版本文件不可达时（如网络受限），24 小时内跳过重复请求，避免控制台 404 噪音
+  if (isFailureCoolingDown()) {
+    return UpdateStatus.FETCH_FAILED;
+  }
   try {
     // 尝试从主要URL获取版本信息
     const primaryVersion = await fetchVersionFromUrl(VERSION_CHECK_URLS[0]);
@@ -35,10 +60,12 @@ export async function checkForUpdates(): Promise<UpdateStatus> {
       return compareVersions(backupVersion);
     }
 
-    // 如果两个URL都失败，返回获取失败状态
+    // 如果两个URL都失败，进入冷却期并返回获取失败状态
+    markFailure();
     return UpdateStatus.FETCH_FAILED;
   } catch (error) {
     console.error('版本检查失败:', error);
+    markFailure();
     return UpdateStatus.FETCH_FAILED;
   }
 }

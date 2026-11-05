@@ -83,6 +83,21 @@ interface MemoryCacheEntry {
 
 const memoryCache = new Map<string, MemoryCacheEntry>();
 
+// 内存缓存条目上限：键由客户端参数拼接（limit/start 可变），防止被撑大
+const MEMORY_CACHE_MAX_ENTRIES = 100;
+
+function memoryCacheSet(key: string, value: DoubanItem[]): void {
+  if (memoryCache.size >= MEMORY_CACHE_MAX_ENTRIES && !memoryCache.has(key)) {
+    // 淘汰最早的条目（Map 保持插入顺序）
+    const oldest = memoryCache.keys().next().value;
+    if (oldest !== undefined) memoryCache.delete(oldest);
+  }
+  memoryCache.set(key, {
+    value,
+    expires: Date.now() + DOUBAN_CACHE_TTL_SECONDS * 1000,
+  });
+}
+
 function buildCacheKey(params: {
   kind: string;
   category: string;
@@ -153,10 +168,7 @@ export async function getCachedDoubanCategoryList(params: {
   }
 
   const list = await fetchCategoryList(params);
-  memoryCache.set(key, {
-    value: list,
-    expires: Date.now() + DOUBAN_CACHE_TTL_SECONDS * 1000,
-  });
+  memoryCacheSet(key, list);
   await writeRedis(key, list);
   return { list, cached: 'fresh' };
 }
@@ -184,10 +196,7 @@ export async function refreshDoubanCategoryCache(params: {
   const full = { limit: 20, start: 0, ...params };
   const key = buildCacheKey(full);
   const list = await fetchCategoryList(full);
-  memoryCache.set(key, {
-    value: list,
-    expires: Date.now() + DOUBAN_CACHE_TTL_SECONDS * 1000,
-  });
+  memoryCacheSet(key, list);
   await writeRedis(key, list);
   return { key, count: list.length };
 }

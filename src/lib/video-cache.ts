@@ -79,6 +79,14 @@ export function runInBackground(promise: Promise<unknown>) {
 
 /* ---------------- 编码与哈希 ---------------- */
 
+/**
+ * 广告过滤算法版本。改写后的播放列表/分片代理 URL 会带上 v=<版本>：
+ * 历史版本响应曾按 max-age=31536000 被浏览器长期缓存，算法升级后只有
+ * 变更 URL 才能让旧客户端绕过旧缓存拿到新算法的过滤结果。
+ * 修改 m3u8-filter 的过滤规则时必须递增此版本。
+ */
+export const FILTER_ALGO_VERSION = 2;
+
 export function toBase64Url(input: string): string {
   return Buffer.from(input, 'utf-8').toString('base64url');
 }
@@ -163,9 +171,9 @@ export function isPlaylistUrl(url: string): boolean {
   return PLAYLIST_PATTERN.test(url);
 }
 
-/** 生成本站代理地址：u=目标绝对地址，ep=所属集哈希 */
+/** 生成本站代理地址：u=目标绝对地址，ep=所属集哈希，v=过滤算法版本（缓存失效用） */
 export function buildProxyUrl(target: string, epHash: string): string {
-  return `/api/video-cache?u=${toBase64Url(target)}&ep=${epHash}`;
+  return `/api/video-cache?u=${toBase64Url(target)}&ep=${epHash}&v=${FILTER_ALGO_VERSION}`;
 }
 
 interface RewriteResult {

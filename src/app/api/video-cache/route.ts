@@ -11,6 +11,7 @@ import {
   rewritePlaylist,
   runInBackground,
   segmentKey,
+  FILTER_ALGO_VERSION,
 } from '@/lib/video-cache';
 
 export const runtime = 'nodejs';
@@ -68,18 +69,21 @@ export async function GET(request: Request) {
     if (bucket && isTopLevel) {
       const key = playlistKey(epHash);
       const cached = await bucket.get(key);
-      if (cached) {
+      // 版本不匹配的旧缓存（旧算法写入）视为未命中：回源用新算法重写并写回，
+      // 避免部署新过滤规则后广告随旧缓存继续出现。
+      const meta = cached?.customMetadata ?? {};
+      const stale = meta.ver !== String(FILTER_ALGO_VERSION);
+      if (cached && !stale) {
         const text = await cached.text();
-        const meta = cached.customMetadata ?? {};
-        const prevCount = Number(meta.count ?? '0') || 0;
         runInBackground(
           bucket.put(key, text, {
             customMetadata: {
               src: meta.src ?? '',
               title: meta.title ?? '',
-              count: String(prevCount + 1),
+              count: String(Number(meta.count ?? '0') + 1),
               lastAccess: String(Date.now()),
               bytes: meta.bytes ?? '0',
+              ver: meta.ver,
             },
           })
         );
@@ -104,6 +108,7 @@ export async function GET(request: Request) {
             count: '0',
             lastAccess: String(Date.now()),
             bytes: '0',
+            ver: String(FILTER_ALGO_VERSION),
           },
         });
       }

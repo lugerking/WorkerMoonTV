@@ -432,9 +432,13 @@ function PlayPageClient() {
       return;
     }
     const rawUrl = detailData?.episodes[episodeIndex] || '';
-    // 该集已缓存时走本站缓存代理播放（缓存未命中会自动回源，不影响播放）
+    // 该集已缓存时走本站缓存代理播放（缓存未命中会自动回源，不影响播放）。
+    // v=过滤算法版本：旧版响应曾被浏览器按 1 年缓存，算法升级后只有变更
+    // URL 才能绕过旧列表（与服务端改写地址的 v 参数保持一致）。
     const newUrl = cachedEpisodes[rawUrl]?.cached
-      ? `/api/video-cache?u=${encodeURIComponent(encodeBase64Url(rawUrl))}`
+      ? `/api/video-cache?u=${encodeURIComponent(
+          encodeBase64Url(rawUrl)
+        )}&v=2`
       : rawUrl;
     if (newUrl !== videoUrl) {
       setVideoUrl(newUrl);

@@ -3,6 +3,27 @@ import { getRedisClient } from './redis.db';
 import { SearchResult } from '@/lib/types';
 import { cleanHtmlTags } from '@/lib/utils';
 
+/**
+ * 构造经中转代理（如 Cloudflare Worker）访问的资源站 API 地址（同构）。
+ *
+ * 当设置 RESOURCE_PROXY_URL（如 https://xxx.workers.dev）且目标为 http(s)
+ * 的苹果 CMS 采集接口（路径含 api.php/provide/vod）时，改写为
+ * `<RESOURCE_PROXY_URL>/?u=<encodeURIComponent(原地址)>`，用于在服务器
+ * 出口被资源站 API 域名封锁时经 Worker 反代回源；未配置代理或目标不匹配
+ * 时原样返回（直连）。播放 CDN（m3u8）等请求不走此代理。
+ */
+export function buildUpstreamApiUrl(url: string): string {
+  const proxy = process.env.RESOURCE_PROXY_URL;
+  if (!proxy || !/^https?:\/\//i.test(url)) return url;
+  try {
+    const parsed = new URL(url);
+    if (!parsed.pathname.includes('api.php/provide/vod')) return url;
+    return `${proxy.replace(/\/+$/, '')}/?u=${encodeURIComponent(url)}`;
+  } catch {
+    return url;
+  }
+}
+
 interface ApiSearchItem {
   vod_id: string;
   vod_name: string;
@@ -29,8 +50,9 @@ export async function searchFromApi(
 ): Promise<SearchResult[]> {
   try {
     const apiBaseUrl = apiSite.api;
-    const apiUrl =
-      apiBaseUrl + API_CONFIG.search.path + encodeURIComponent(query);
+    const apiUrl = buildUpstreamApiUrl(
+      apiBaseUrl + API_CONFIG.search.path + encodeURIComponent(query)
+    );
     const apiName = apiSite.name;
 
     // 添加超时处理
@@ -111,11 +133,12 @@ export async function searchFromApi(
       const additionalPagePromises = [];
 
       for (let page = 2; page <= pagesToFetch + 1; page++) {
-        const pageUrl =
+        const pageUrl = buildUpstreamApiUrl(
           apiBaseUrl +
-          API_CONFIG.search.pagePath
-            .replace('{query}', encodeURIComponent(query))
-            .replace('{page}', page.toString());
+            API_CONFIG.search.pagePath
+              .replace('{query}', encodeURIComponent(query))
+              .replace('{page}', page.toString())
+        );
 
         const pagePromise = (async () => {
           try {
@@ -213,7 +236,9 @@ export async function getDetailFromApi(
     }
   }
 
-  const detailUrl = `${apiSite.api}${API_CONFIG.detail.path}${id}`;
+  const detailUrl = buildUpstreamApiUrl(
+    `${apiSite.api}${API_CONFIG.detail.path}${id}`
+  );
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
